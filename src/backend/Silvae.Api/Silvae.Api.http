@@ -1,0 +1,6 @@
+@Silvae.Api_HostAddress = http://localhost:5266
+
+GET {{Silvae.Api_HostAddress}}/api/health
+Accept: application/json
+
+###
