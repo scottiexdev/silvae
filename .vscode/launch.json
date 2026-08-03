@@ -1,0 +1,81 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend API",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "backend: build",
+      "program": "${workspaceFolder}/src/backend/Silvae.Api/bin/Debug/net9.0/Silvae.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/backend/Silvae.Api",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/api/health"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Flutter Web",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/src/mobile/silvae_app",
+      "program": "lib/main.dart",
+      "deviceId": "chrome"
+    },
+    {
+      "name": "Flutter Web Configured",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/src/mobile/silvae_app",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--dart-define=SILVAE_SUPABASE_URL=${input:supabaseUrl}",
+        "--dart-define=SILVAE_SUPABASE_ANON_KEY=${input:supabaseAnonKey}",
+        "--dart-define=SILVAE_API_BASE_URL=${input:apiBaseUrl}",
+        "--dart-define=SILVAE_ORGANIZATION_ID=${input:organizationId}"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Backend API + Flutter Web",
+      "configurations": ["Backend API", "Flutter Web"]
+    },
+    {
+      "name": "Backend API + Flutter Web Configured",
+      "configurations": ["Backend API", "Flutter Web Configured"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "supabaseUrl",
+      "type": "promptString",
+      "description": "Supabase URL",
+      "default": "https://PROJECT.supabase.co"
+    },
+    {
+      "id": "supabaseAnonKey",
+      "type": "promptString",
+      "description": "Supabase anon key",
+      "password": true
+    },
+    {
+      "id": "apiBaseUrl",
+      "type": "promptString",
+      "description": "Silvae API base URL",
+      "default": "http://localhost:5266"
+    },
+    {
+      "id": "organizationId",
+      "type": "promptString",
+      "description": "Organization UUID",
+      "default": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

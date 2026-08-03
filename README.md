@@ -56,6 +56,28 @@ flutter analyze
 flutter test
 ```
 
+## VS Code
+
+Aprire la cartella repository con Code:
+
+```bash
+code E:\Coding\silvae
+```
+
+La repo include configurazioni in `.vscode` per build e avvio:
+
+- `Backend API`: builda e avvia l'API ASP.NET Core su `http://localhost:5266`.
+- `Flutter Web`: avvia il client Flutter su Chrome senza `--dart-define`, mostrando la pagina di configurazione.
+- `Backend API + Flutter Web`: avvia backend e client insieme.
+- `Flutter Web Configured`: chiede Supabase URL, anon key, API base URL e organization id.
+
+Da `Terminal > Run Task...` sono disponibili anche `backend: build`,
+`backend: test`, `flutter: pub get`, `flutter: analyze`, `flutter: test`,
+`flutter: run web` e `flutter: run web configured`.
+
+Prerequisiti locali: .NET SDK 9, Flutter SDK nel `PATH`, estensioni VS Code C#
+e Flutter/Dart.
+
 Rigenerazione del client Dart (richiede Node.js):
 
 ```bash

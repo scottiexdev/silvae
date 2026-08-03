@@ -1,0 +1,129 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "backend: build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/Silvae.sln"],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "backend: test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/Silvae.sln"],
+      "group": "test",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "backend: run api",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "${workspaceFolder}/src/backend/Silvae.Api"],
+      "options": {
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "dotnet",
+        "pattern": "$msCompile",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Building\\.\\.\\.",
+          "endsPattern": "Now listening on:"
+        }
+      }
+    },
+    {
+      "label": "flutter: pub get",
+      "type": "process",
+      "command": "flutter",
+      "args": ["pub", "get"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/mobile/silvae_app"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "flutter: analyze",
+      "type": "process",
+      "command": "flutter",
+      "args": ["analyze"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/mobile/silvae_app"
+      },
+      "problemMatcher": "$dart-analyzer"
+    },
+    {
+      "label": "flutter: test",
+      "type": "process",
+      "command": "flutter",
+      "args": ["test"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/mobile/silvae_app"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "flutter: run web",
+      "type": "process",
+      "command": "flutter",
+      "args": ["run", "-d", "chrome"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/mobile/silvae_app"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "flutter: run web configured",
+      "type": "process",
+      "command": "flutter",
+      "args": [
+        "run",
+        "-d",
+        "chrome",
+        "--dart-define=SILVAE_SUPABASE_URL=${input:supabaseUrl}",
+        "--dart-define=SILVAE_SUPABASE_ANON_KEY=${input:supabaseAnonKey}",
+        "--dart-define=SILVAE_API_BASE_URL=${input:apiBaseUrl}",
+        "--dart-define=SILVAE_ORGANIZATION_ID=${input:organizationId}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/src/mobile/silvae_app"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "supabaseUrl",
+      "type": "promptString",
+      "description": "Supabase URL",
+      "default": "https://PROJECT.supabase.co"
+    },
+    {
+      "id": "supabaseAnonKey",
+      "type": "promptString",
+      "description": "Supabase anon key",
+      "password": true
+    },
+    {
+      "id": "apiBaseUrl",
+      "type": "promptString",
+      "description": "Silvae API base URL",
+      "default": "http://localhost:5266"
+    },
+    {
+      "id": "organizationId",
+      "type": "promptString",
+      "description": "Organization UUID",
+      "default": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}
