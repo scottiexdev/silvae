@@ -75,8 +75,8 @@ Da `Terminal > Run Task...` sono disponibili anche `backend: build`,
 `backend: test`, `flutter: pub get`, `flutter: analyze`, `flutter: test`,
 `flutter: run web` e `flutter: run web configured`.
 
-Prerequisiti locali: .NET SDK 9, Flutter SDK nel `PATH`, estensioni VS Code C#
-e Flutter/Dart.
+Prerequisiti locali: .NET SDK 10 (la versione minima è fissata in
+`global.json`), Flutter SDK nel `PATH`, estensioni VS Code C# e Flutter/Dart.
 
 Rigenerazione del client Dart (richiede Node.js):
 
