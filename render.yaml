@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: silvae-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./src/backend/Silvae.Api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ConnectionStrings__Silvae
+        sync: false
+      - key: Authentication__Authority
+        sync: false
+      - key: Authentication__Audience
+        value: authenticated
+      - key: SILVAE_ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: silvae-web
+    runtime: static
+    buildCommand: bash scripts/render-build-web.sh
+    staticPublishPath: ./src/mobile/silvae_app/build/web
+    autoDeployTrigger: commit
+    envVars:
+      - key: SILVAE_API_BASE_URL
+        sync: false
+      - key: SILVAE_SUPABASE_URL
+        sync: false
+      - key: SILVAE_SUPABASE_ANON_KEY
+        sync: false
+      - key: SILVAE_ORGANIZATION_ID
+        sync: false
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

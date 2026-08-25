@@ -1,0 +1,11 @@
+**/bin
+**/obj
+**/build
+**/.dart_tool
+**/.git
+**/.vs
+**/.vscode
+**/coverage
+*.user
+*.suo
+.env

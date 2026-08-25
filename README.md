@@ -78,6 +78,20 @@ Da `Terminal > Run Task...` sono disponibili anche `backend: build`,
 Prerequisiti locali: .NET SDK 10 (la versione minima è fissata in
 `global.json`), Flutter SDK nel `PATH`, estensioni VS Code C# e Flutter/Dart.
 
+## Pubblicazione
+
+Il repository contiene `render.yaml`, che definisce due servizi Render:
+
+- `silvae-api`, Web Service Docker per l'API ASP.NET Core;
+- `silvae-web`, Static Site che builda il client Flutter Web.
+
+Il database e l'identità restano su Supabase. L'API applica le migrazioni EF
+Core all'avvio e, senza `ConnectionStrings__Silvae`, rifiuta di partire fuori
+da Development e Testing.
+
+La procedura completa, con le variabili da inserire nel pannello Render, è in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 Rigenerazione del client Dart (richiede Node.js):
 
 ```bash

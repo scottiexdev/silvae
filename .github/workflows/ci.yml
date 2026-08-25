@@ -44,3 +44,36 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib test ../silvae_api_client/lib
       - run: flutter analyze
       - run: flutter test
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the API container image
+        run: |
+          docker build \
+            --file src/backend/Silvae.Api/Dockerfile \
+            --tag silvae-api:ci \
+            .
+      - name: Start the container without a connection string
+        run: |
+          docker run --rm --detach --name silvae-api-ci \
+            --publish 8080:10000 \
+            --env ASPNETCORE_ENVIRONMENT=Testing \
+            silvae-api:ci
+      - name: Wait for /api/health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:8080/api/health; then
+              echo
+              echo "health check ok after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "the API did not answer on /api/health" >&2
+          docker logs silvae-api-ci >&2
+          exit 1
+      - name: Stop the container
+        if: always()
+        run: docker rm --force silvae-api-ci || true
