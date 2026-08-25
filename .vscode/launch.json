@@ -6,7 +6,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "backend: build",
-      "program": "${workspaceFolder}/src/backend/Silvae.Api/bin/Debug/net9.0/Silvae.Api.dll",
+      "program": "${workspaceFolder}/src/backend/Silvae.Api/bin/Debug/net10.0/Silvae.Api.dll",
       "args": [],
       "cwd": "${workspaceFolder}/src/backend/Silvae.Api",
       "stopAtEntry": false,
