@@ -15,8 +15,7 @@ public sealed class PostgreSqlHealthTests
             return;
         }
 
-        await using var postgres = new PostgreSqlBuilder()
-            .WithImage("postgres:17-alpine")
+        await using var postgres = new PostgreSqlBuilder("postgres:17-alpine")
             .WithDatabase("silvae")
             .WithUsername("postgres")
             .WithPassword("postgres")
