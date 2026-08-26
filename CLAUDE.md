@@ -76,6 +76,20 @@ Migrazioni EF e `docs/openapi.json` non si scrivono a mano. In locale servono
 `dotnet ef`; altrimenti c'è il workflow `tools`, avviabile a mano da GitHub
 Actions, che li rigenera e li committa sul branch da cui parte.
 
+**Le migrazioni non si rigenerano più.** Vale da quando esiste un ambiente
+pubblicato: `silvae-api` applica `MigrateAsync()` all'avvio, e Postgres tiene
+in `__EFMigrationsHistory` gli id già applicati. Sostituire una migrazione con
+una rigenerata le dà un id nuovo, EF la crede da applicare e ricrea tabelle che
+esistono già — l'avvio muore con `relation "organizations" already exists` e
+Render tiene su l'istanza vecchia, quindi il deploy sembra sano mentre serve
+codice di ieri. È già successo il 2026-08-26. Da qui in avanti ogni modifica al
+modello aggiunge una migrazione incrementale.
+
+Nessun job di CI copre questo caso: `container` avvia l'immagine senza
+connection string, quindi le migrazioni non girano, e gli altri partono da un
+database vuoto. Nessuno prova ad aggiornare un database che ha già lo schema
+precedente.
+
 Due controlli in CI impediscono la deriva: `has-pending-model-changes` verifica
 che modello e migrazioni coincidano, e un confronto verifica che il contratto
 pubblicato dall'API corrisponda a `docs/openapi.json`.

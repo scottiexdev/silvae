@@ -130,6 +130,12 @@ e comunicato a mano.
 
 - Ogni push su `main` avvia i deploy interessati.
 - All'avvio l'API applica le migrazioni EF Core sul database Supabase.
+- Le migrazioni si aggiungono, non si rigenerano: un id nuovo su una migrazione
+  già applicata fa ricreare tabelle esistenti e l'avvio fallisce con
+  `relation "..." already exists`.
+- Quando l'avvio fallisce Render lascia in servizio l'istanza precedente. Il
+  health check risponde e il servizio sembra sano, ma serve il codice vecchio:
+  controllare i log del deploy, non solo `/api/health`.
 - Senza `ConnectionStrings__Silvae` l'API rifiuta di partire fuori da
   Development e Testing: un deploy mal configurato fallisce subito invece di
   girare su un database in memoria.
