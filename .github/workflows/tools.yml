@@ -1,0 +1,55 @@
+name: tools
+
+# Strumenti di manutenzione da lanciare a mano. Servono perché parte del
+# lavoro richiede l'SDK .NET, che non è disponibile ovunque si sviluppi.
+on:
+  workflow_dispatch:
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    env:
+      # dotnet ef non si collega al database per generare una migrazione: la
+      # stringa serve solo a far scegliere il provider Npgsql.
+      ConnectionStrings__Silvae: Host=localhost;Database=silvae;Username=postgres;Password=postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Regenerate the initial migration with its model snapshot
+        run: |
+          rm -rf src/backend/Silvae.Infrastructure/Persistence/Migrations
+          dotnet ef migrations add InitialCreate \
+            --project src/backend/Silvae.Infrastructure \
+            --startup-project src/backend/Silvae.Api \
+            --output-dir Persistence/Migrations
+
+      - name: Export the OpenAPI document
+        env:
+          ASPNETCORE_ENVIRONMENT: Testing
+          ConnectionStrings__Silvae: ""
+        run: |
+          dotnet run --project src/backend/Silvae.Api \
+            --no-launch-profile --urls http://127.0.0.1:5089 &
+          for _ in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:5089/openapi/v1.json \
+              --output docs/openapi.json; then
+              break
+            fi
+            sleep 2
+          done
+          test -s docs/openapi.json
+          python3 -m json.tool --indent 2 docs/openapi.json docs/openapi.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regenerated
+          path: |
+            src/backend/Silvae.Infrastructure/Persistence/Migrations/
+            docs/openapi.json
+          if-no-files-found: error
