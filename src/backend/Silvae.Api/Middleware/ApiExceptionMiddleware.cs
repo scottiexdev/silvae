@@ -60,6 +60,12 @@ public sealed class ApiExceptionMiddleware(
                 (StatusCodes.Status401Unauthorized, "Autenticazione richiesta"),
             OrganizationAccessDeniedException or ResourceAccessDeniedException =>
                 (StatusCodes.Status403Forbidden, "Accesso negato"),
+            ResourceNotFoundException =>
+                (StatusCodes.Status404NotFound, "Risorsa inesistente"),
+            RegistryConflictException =>
+                (StatusCodes.Status409Conflict, "Anagrafica in conflitto"),
+            RegistryValidationException =>
+                (StatusCodes.Status400BadRequest, "Dati non validi"),
             SyncConflictException =>
                 (StatusCodes.Status409Conflict, "Conflitto di sincronizzazione"),
             SyncValidationException =>

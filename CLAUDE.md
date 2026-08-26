@@ -9,29 +9,42 @@ Milestone 0 e 1 complete. Il ciclo offline funziona ed è coperto da test:
 creazione e modifica del rapportino sul dispositivo, outbox, push/pull
 idempotente, conflitti, sincronizzazione automatica con attesa crescente.
 
-**Nessuno l'ha però mai visto girare davvero.** L'API non espone endpoint di
-scrittura per organizzazioni, commesse e cantieri, quindi su un database vuoto
-`GET /api/me` risponde 403 e la schermata dei rapportini non ha nulla su cui
-lavorare. Sbloccare questo è il prossimo passo e il prerequisito della
-Milestone 2.
+L'anagrafica è scrivibile: bootstrap della prima organizzazione, membri,
+commesse, cantieri e assegnazioni, tutto con autorizzazione per ruolo. Un
+database vuoto si popola via HTTP.
 
-Lo stack di pubblicazione (Render + Supabase) è pronto e verificato in CI, ma
-non è mai stato eseguito: non esiste ancora un progetto Supabase.
+Il rapportino ha il suo contenuto: squadra con le ore, lavorazioni, checklist
+di sicurezza, transizioni `Draft` → `Submitted` → `Approved` → `Reopened` e
+audit di chi le ha fatte (ADR 005). L'invio passa dalla coda perché avviene in
+cantiere; approvazione e riapertura hanno endpoint diretti.
+
+Manca l'interfaccia. Né l'anagrafica né il rapportino nuovo hanno schermate:
+tutto questo si esercita chiamando l'API, e l'app continua a sincronizzare il
+rapportino minimo della Milestone 1.
+
+**Nessuno l'ha però mai visto girare davvero.** Lo stack di pubblicazione
+(Render + Supabase) è pronto e verificato in CI, ma non è mai stato eseguito:
+non esiste ancora un progetto Supabase. Manca anche il modo di provarlo in
+locale, perché senza Supabase non esiste un'identità: servirebbe
+un'autenticazione di sviluppo ristretta a `Development`.
 
 ## Decisioni aperte
 
-- **Bootstrap del primo amministratore.** Un utente Supabase appena registrato
-  non appartiene a nessuna organizzazione, ma gli endpoint di anagrafica
-  richiedono di esserne già amministratori. Le uscite valutate: endpoint
-  protetto da un segreto di deploy, inviti, oppure la prima riga inserita a
-  mano una tantum. Non ancora scelta.
 - **Client Dart generato.** Il piano lo prevede, ma non è mai stato attivato:
   vedi sotto.
+- **Checklist di sicurezza.** Le voci arrivano dal dispositivo identificate da
+  un codice; non esiste ancora una checklist per organizzazione che dica quali
+  voci siano obbligatorie.
 
 ## Trappole note
 
 Sono tutte cose che hanno già rotto la CI almeno una volta.
 
+- **Le chiavi le genera il dominio, non il database.** Ogni entità con `Id`
+  `Guid` va dichiarata `ValueGeneratedNever()`: senza, EF vede una chiave già
+  valorizzata, conclude che la riga esiste e prova un UPDATE invece di un
+  INSERT. Il sintomo arriva al primo aggiornamento di un aggregato con figli:
+  `Attempted to update or delete an entity that does not exist in the store`.
 - **Nomi dei test in PascalCase**, senza underscore: `CA1707` è un errore, non
   un avviso, perché `TreatWarningsAsErrors` è attivo.
 - **Non formattare Dart a mano.** `dart format` non solo spezza le righe
@@ -74,6 +87,17 @@ Quest'ultimo builda l'immagine e verifica che risponda su `/api/health`.
 
 ## Scelte da non rimettere in discussione senza motivo
 
+- Il **bootstrap del primo amministratore** passa da un endpoint protetto dal
+  segreto di deploy `SILVAE_BOOTSTRAP_SECRET` (ADR 004). Gli inviti verranno
+  dopo, non al posto suo.
+- **L'ultimo amministratore non si degrada e non si rimuove**: senza
+  amministratori l'organizzazione si riaprirebbe solo con il segreto di
+  deploy, che sul telefono di chi resta non c'è.
+- L'**upsert del rapportino sostituisce il contenuto**, non lo fonde. Una lista
+  assente dal payload significa «non toccare», una lista vuota cancella
+  (ADR 005).
+- L'**invio del rapportino passa dalla coda** come le modifiche; approvazione e
+  riapertura no. La prima cosa succede in cantiere, le altre in ufficio.
 - Il legame cantiere→commessa è **facoltativo**: un cantiere può essere
   censito prima che la commessa sia formalizzata.
 - Le modifiche successive allo stesso rapportino **confluiscono

@@ -17,6 +17,10 @@ services:
         value: authenticated
       - key: SILVAE_ALLOWED_ORIGINS
         sync: false
+      # Vuota su un ambiente già inizializzato: senza valore
+      # POST /api/bootstrap/organization risponde 403.
+      - key: SILVAE_BOOTSTRAP_SECRET
+        sync: false
 
   - type: web
     name: silvae-web

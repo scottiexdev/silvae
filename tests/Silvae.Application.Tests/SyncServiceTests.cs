@@ -1,11 +1,9 @@
 using System.Text.Json;
 using FluentAssertions;
-using Silvae.Application.Abstractions;
 using Silvae.Application.Common;
 using Silvae.Application.Identity;
 using Silvae.Application.Sync;
 using Silvae.Domain.DailyReports;
-using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
 using Silvae.Domain.Worksites;
 
@@ -59,21 +57,152 @@ public sealed class SyncServiceTests
         exception.Which.CurrentVersion.Should().Be(1);
     }
 
+    [Fact]
+    public async Task TheCrewArrivesWithTheReportAndComesBackWithThePull()
+    {
+        var fixture = new Fixture();
+
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 0,
+                    crew: [new CrewMemberPayload(UserId, 7.5m, "mezza in salita")],
+                    activities: [new ActivityPayload("Sfalcio", 1200m, "mq")],
+                    safetyChecks: [new SafetyCheckPayload("DPI-CASCO", true, null)]),
+            ]),
+            CancellationToken.None);
+
+        var pull = await fixture.Service.PullAsync(null, CancellationToken.None);
+
+        var report = pull.DailyReports.Should().ContainSingle().Subject;
+        report.Crew.Should().ContainSingle().Which.Hours.Should().Be(7.5m);
+        report.Activities.Should().ContainSingle().Which.Unit.Should().Be("mq");
+        report.SafetyChecks.Should().ContainSingle().Which.Code.Should().Be("DPI-CASCO");
+    }
+
+    [Fact]
+    public async Task AnAbsentCrewLeavesTheOneAlreadyRegistered()
+    {
+        var fixture = new Fixture();
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 0,
+                    crew: [new CrewMemberPayload(UserId, 8m, null)]),
+            ]),
+            CancellationToken.None);
+
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(expectedVersion: 1, operationId: Guid.NewGuid()),
+            ]),
+            CancellationToken.None);
+
+        fixture.Store.Reports.Single().Crew.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task AnEmptyCrewClearsTheOneAlreadyRegistered()
+    {
+        var fixture = new Fixture();
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 0,
+                    crew: [new CrewMemberPayload(UserId, 8m, null)]),
+            ]),
+            CancellationToken.None);
+
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 1,
+                    operationId: Guid.NewGuid(),
+                    crew: []),
+            ]),
+            CancellationToken.None);
+
+        fixture.Store.Reports.Single().Crew.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SomeoneOutsideTheOrganizationCannotBeInTheCrew()
+    {
+        var fixture = new Fixture();
+
+        var action = () => fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 0,
+                    crew: [new CrewMemberPayload(Guid.NewGuid(), 8m, null)]),
+            ]),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<SyncValidationException>();
+    }
+
+    [Fact]
+    public async Task TheReportIsSubmittedThroughTheQueue()
+    {
+        var fixture = new Fixture();
+        await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 0,
+                    crew: [new CrewMemberPayload(UserId, 8m, null)]),
+            ]),
+            CancellationToken.None);
+
+        var result = await fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(
+                    expectedVersion: 1,
+                    operationId: Guid.NewGuid(),
+                    operationType: "submit"),
+            ]),
+            CancellationToken.None);
+
+        result.Operations.Single().Version.Should().Be(2);
+        fixture.Store.Reports.Single().Status.Should()
+            .Be(DailyReportStatus.Submitted);
+    }
+
+    [Fact]
+    public async Task AnUnknownOperationIsRejected()
+    {
+        var fixture = new Fixture();
+
+        var action = () => fixture.Service.PushAsync(
+            new PushSyncRequest([
+                CreateOperation(expectedVersion: 0, operationType: "delete"),
+            ]),
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<SyncValidationException>();
+    }
+
     private static SyncOperationDto CreateOperation(
         long expectedVersion,
-        Guid? operationId = null)
+        Guid? operationId = null,
+        string operationType = "upsert",
+        IReadOnlyList<CrewMemberPayload>? crew = null,
+        IReadOnlyList<ActivityPayload>? activities = null,
+        IReadOnlyList<SafetyCheckPayload>? safetyChecks = null)
     {
         var payload = JsonSerializer.SerializeToElement(new DailyReportPayload(
             WorksiteId,
             new DateOnly(2026, 7, 25),
-            "Sfalcio"));
+            "Sfalcio",
+            crew,
+            activities,
+            safetyChecks));
 
         return new SyncOperationDto(
             operationId ?? Guid.NewGuid(),
             OrganizationId,
             Fixture.ReportId,
             "dailyReport",
-            "upsert",
+            operationType,
             expectedVersion,
             payload,
             Now);
@@ -91,7 +220,7 @@ public sealed class SyncServiceTests
 
         public Fixture()
         {
-            Store = new TestStore();
+            Store = new InMemorySilvaeStore();
             Store.Memberships.Add(new UserMembership(
                 OrganizationId,
                 UserId,
@@ -112,129 +241,13 @@ public sealed class SyncServiceTests
                 new FixedTimeProvider(Now));
         }
 
-        public TestStore Store { get; }
+        public InMemorySilvaeStore Store { get; }
 
         public SyncService Service { get; }
-    }
-
-    private sealed class TestRequestContext : IRequestContext
-    {
-        public Guid UserId { get; init; }
-
-        public Guid? SelectedOrganizationId { get; init; }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    private sealed class TestStore : ISilvaeStore
-    {
-        public List<UserMembership> Memberships { get; } = [];
-
-        public List<Worksite> Worksites { get; } = [];
-
-        public List<JobOrder> JobOrders { get; } = [];
-
-        public List<DailyReport> Reports { get; } = [];
-
-        public List<ProcessedSyncOperation> ProcessedOperations { get; } = [];
-
-        public Task<IReadOnlyList<UserMembership>> GetMembershipsAsync(
-            Guid userId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<UserMembership>>(
-                Memberships.Where(item => item.UserId == userId).ToArray());
-        }
-
-        public Task<UserMembership?> GetMembershipAsync(
-            Guid organizationId,
-            Guid userId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Memberships.SingleOrDefault(item =>
-                item.OrganizationId == organizationId && item.UserId == userId));
-        }
-
-        public Task<IReadOnlyList<JobOrder>> GetJobOrdersAsync(
-            Guid organizationId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<JobOrder>>(
-                JobOrders.Where(item => item.OrganizationId == organizationId)
-                    .ToArray());
-        }
-
-        public Task<IReadOnlyList<Worksite>> GetAssignedWorksitesAsync(
-            Guid organizationId,
-            Guid userId,
-            bool includeAll,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<Worksite>>(
-                Worksites.Where(item =>
-                    item.OrganizationId == organizationId &&
-                    (includeAll ||
-                        item.Assignments.Any(assignment =>
-                            assignment.UserId == userId))).ToArray());
-        }
-
-        public Task<bool> CanAccessWorksiteAsync(
-            Guid organizationId,
-            Guid worksiteId,
-            Guid userId,
-            bool includeAll,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Worksites.Any(item =>
-                item.OrganizationId == organizationId &&
-                item.Id == worksiteId &&
-                (includeAll ||
-                    item.Assignments.Any(assignment =>
-                        assignment.UserId == userId))));
-        }
-
-        public Task<DailyReport?> GetDailyReportAsync(
-            Guid organizationId,
-            Guid reportId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(Reports.SingleOrDefault(item =>
-                item.OrganizationId == organizationId && item.Id == reportId));
-        }
-
-        public Task<IReadOnlyList<DailyReport>> GetDailyReportsChangedSinceAsync(
-            Guid organizationId,
-            Guid userId,
-            bool includeAll,
-            DateTimeOffset? changedSince,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<DailyReport>>(
-                Reports.Where(item =>
-                    item.OrganizationId == organizationId &&
-                    (changedSince is null || item.UpdatedAt > changedSince)).ToArray());
-        }
-
-        public Task<ProcessedSyncOperation?> GetProcessedOperationAsync(
-            Guid organizationId,
-            Guid operationId,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(ProcessedOperations.SingleOrDefault(item =>
-                item.OrganizationId == organizationId &&
-                item.OperationId == operationId));
-        }
-
-        public void AddDailyReport(DailyReport dailyReport) =>
-            Reports.Add(dailyReport);
-
-        public void AddProcessedOperation(ProcessedSyncOperation operation) =>
-            ProcessedOperations.Add(operation);
-
-        public Task SaveChangesAsync(CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 }

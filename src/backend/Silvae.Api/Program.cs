@@ -84,7 +84,11 @@ app.UseAuthorization();
 app.MapOpenApi();
 app.MapHealthEndpoints();
 app.MapIdentityEndpoints();
+app.MapBootstrapEndpoints();
+app.MapOrganizationEndpoints();
+app.MapJobOrderEndpoints();
 app.MapWorksiteEndpoints();
+app.MapDailyReportEndpoints();
 app.MapSyncEndpoints();
 
 app.Run();

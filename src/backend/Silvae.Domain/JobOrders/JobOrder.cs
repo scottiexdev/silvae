@@ -69,6 +69,17 @@ public sealed class JobOrder
         Touch();
     }
 
+    public void Reopen()
+    {
+        if (IsActive)
+        {
+            return;
+        }
+
+        IsActive = true;
+        Touch();
+    }
+
     private void Touch()
     {
         Version++;

@@ -30,6 +30,29 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             cancellationToken);
     }
 
+    /// <summary>
+    /// Restituisce membership tracciate: da qui passa anche il cambio di ruolo,
+    /// che modifica l'entità restituita.
+    /// </summary>
+    public async Task<IReadOnlyList<UserMembership>> GetOrganizationMembersAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.UserMemberships
+            .Where(item => item.OrganizationId == organizationId)
+            .OrderBy(item => item.DisplayName)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<Organization?> GetOrganizationAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Organizations.SingleOrDefaultAsync(
+            item => item.Id == organizationId,
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<JobOrder>> GetJobOrdersAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
@@ -41,15 +64,41 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Worksite>> GetAssignedWorksitesAsync(
+    public Task<JobOrder?> GetJobOrderAsync(
+        Guid organizationId,
+        Guid jobOrderId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.JobOrders.SingleOrDefaultAsync(
+            item => item.OrganizationId == organizationId && item.Id == jobOrderId,
+            cancellationToken);
+    }
+
+    public Task<bool> JobOrderCodeExistsAsync(
+        Guid organizationId,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.JobOrders.AnyAsync(
+            item => item.OrganizationId == organizationId && item.Code == code,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Worksite>> GetWorksitesAsync(
         Guid organizationId,
         Guid userId,
         bool includeAll,
+        bool includeInactive,
         CancellationToken cancellationToken)
     {
         var query = dbContext.Worksites
             .AsNoTracking()
-            .Where(item => item.OrganizationId == organizationId && item.IsActive);
+            .Where(item => item.OrganizationId == organizationId);
+
+        if (!includeInactive)
+        {
+            query = query.Where(item => item.IsActive);
+        }
 
         if (!includeAll)
         {
@@ -60,6 +109,33 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
         return await query
             .OrderBy(item => item.Code)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Restituisce il cantiere tracciato con le sue assegnazioni: è l'aggregato
+    /// su cui l'anagrafica scrive.
+    /// </summary>
+    public Task<Worksite?> GetWorksiteAsync(
+        Guid organizationId,
+        Guid worksiteId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Worksites
+            .Include(item => item.Assignments)
+            .SingleOrDefaultAsync(
+                item => item.OrganizationId == organizationId &&
+                    item.Id == worksiteId,
+                cancellationToken);
+    }
+
+    public Task<bool> WorksiteCodeExistsAsync(
+        Guid organizationId,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Worksites.AnyAsync(
+            item => item.OrganizationId == organizationId && item.Code == code,
+            cancellationToken);
     }
 
     public Task<bool> CanAccessWorksiteAsync(
@@ -79,15 +155,24 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             cancellationToken);
     }
 
+    /// <summary>
+    /// Il rapportino arriva con il suo contenuto: squadra, attività, sicurezza
+    /// e audit fanno parte dell'aggregato e l'upsert li sostituisce insieme.
+    /// </summary>
     public Task<DailyReport?> GetDailyReportAsync(
         Guid organizationId,
         Guid reportId,
         CancellationToken cancellationToken)
     {
-        return dbContext.DailyReports.SingleOrDefaultAsync(
-            item => item.OrganizationId == organizationId &&
-                item.Id == reportId,
-            cancellationToken);
+        return dbContext.DailyReports
+            .Include(item => item.Crew)
+            .Include(item => item.Activities)
+            .Include(item => item.SafetyChecks)
+            .Include(item => item.Audit)
+            .SingleOrDefaultAsync(
+                item => item.OrganizationId == organizationId &&
+                    item.Id == reportId,
+                cancellationToken);
     }
 
     public async Task<IReadOnlyList<DailyReport>> GetDailyReportsChangedSinceAsync(
@@ -99,6 +184,9 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
     {
         var query = dbContext.DailyReports
             .AsNoTracking()
+            .Include(item => item.Crew)
+            .Include(item => item.Activities)
+            .Include(item => item.SafetyChecks)
             .Where(item => item.OrganizationId == organizationId);
 
         if (changedSince is not null)
@@ -141,6 +229,49 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
                 item.EntityId,
                 item.EntityVersion,
                 item.ProcessedAt);
+    }
+
+    public void AddOrganization(Organization organization)
+    {
+        dbContext.Organizations.Add(organization);
+    }
+
+    public void AddMembership(UserMembership membership)
+    {
+        dbContext.UserMemberships.Add(membership);
+    }
+
+    public async Task RemoveMemberAsync(
+        Guid organizationId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var assignments = await dbContext.WorksiteAssignments
+            .Where(assignment => assignment.UserId == userId &&
+                dbContext.Worksites.Any(worksite =>
+                    worksite.Id == assignment.WorksiteId &&
+                    worksite.OrganizationId == organizationId))
+            .ToListAsync(cancellationToken);
+        dbContext.WorksiteAssignments.RemoveRange(assignments);
+
+        var membership = await GetMembershipAsync(
+            organizationId,
+            userId,
+            cancellationToken);
+        if (membership is not null)
+        {
+            dbContext.UserMemberships.Remove(membership);
+        }
+    }
+
+    public void AddJobOrder(JobOrder jobOrder)
+    {
+        dbContext.JobOrders.Add(jobOrder);
+    }
+
+    public void AddWorksite(Worksite worksite)
+    {
+        dbContext.Worksites.Add(worksite);
     }
 
     public void AddDailyReport(DailyReport dailyReport)

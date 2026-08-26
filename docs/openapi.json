@@ -50,12 +50,267 @@
         }
       }
     },
+    "/api/bootstrap/organization": {
+      "post": {
+        "tags": [
+          "Bootstrap"
+        ],
+        "operationId": "BootstrapOrganization",
+        "parameters": [
+          {
+            "name": "X-Bootstrap-Secret",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organization/members": {
+      "get": {
+        "tags": [
+          "Organization"
+        ],
+        "operationId": "GetOrganizationMembers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationMemberDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organization/members/{userId}": {
+      "put": {
+        "tags": [
+          "Organization"
+        ],
+        "operationId": "UpsertOrganizationMember",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Organization"
+        ],
+        "operationId": "RemoveOrganizationMember",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/job-orders": {
+      "get": {
+        "tags": [
+          "JobOrders"
+        ],
+        "operationId": "GetJobOrders",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobOrderDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "JobOrders"
+        ],
+        "operationId": "CreateJobOrder",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/job-orders/{jobOrderId}": {
+      "get": {
+        "tags": [
+          "JobOrders"
+        ],
+        "operationId": "GetJobOrder",
+        "parameters": [
+          {
+            "name": "jobOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "JobOrders"
+        ],
+        "operationId": "UpdateJobOrder",
+        "parameters": [
+          {
+            "name": "jobOrderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJobOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/worksites": {
       "get": {
         "tags": [
           "Worksites"
         ],
         "operationId": "GetAssignedWorksites",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -66,6 +321,306 @@
                   "items": {
                     "$ref": "#/components/schemas/WorksiteDto"
                   }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Worksites"
+        ],
+        "operationId": "CreateWorksite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorksiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorksiteDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worksites/{worksiteId}": {
+      "get": {
+        "tags": [
+          "Worksites"
+        ],
+        "operationId": "GetWorksite",
+        "parameters": [
+          {
+            "name": "worksiteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorksiteDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Worksites"
+        ],
+        "operationId": "UpdateWorksite",
+        "parameters": [
+          {
+            "name": "worksiteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorksiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorksiteDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/worksites/{worksiteId}/assignments/{userId}": {
+      "put": {
+        "tags": [
+          "Worksites"
+        ],
+        "operationId": "AssignWorksiteMember",
+        "parameters": [
+          {
+            "name": "worksiteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorksiteDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Worksites"
+        ],
+        "operationId": "UnassignWorksiteMember",
+        "parameters": [
+          {
+            "name": "worksiteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorksiteDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/daily-reports/{reportId}": {
+      "get": {
+        "tags": [
+          "DailyReports"
+        ],
+        "operationId": "GetDailyReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/daily-reports/{reportId}/submit": {
+      "post": {
+        "tags": [
+          "DailyReports"
+        ],
+        "operationId": "SubmitDailyReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/daily-reports/{reportId}/approve": {
+      "post": {
+        "tags": [
+          "DailyReports"
+        ],
+        "operationId": "ApproveDailyReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/daily-reports/{reportId}/reopen": {
+      "post": {
+        "tags": [
+          "DailyReports"
+        ],
+        "operationId": "ReopenDailyReport",
+        "parameters": [
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyReportDetailDto"
                 }
               }
             }
@@ -136,6 +691,158 @@
   },
   "components": {
     "schemas": {
+      "ActivityPayload": {
+        "required": [
+          "description",
+          "quantity",
+          "unit"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "unit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "BootstrapResultDto": {
+        "required": [
+          "organizationId",
+          "organizationName",
+          "userId",
+          "displayName",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateJobOrderRequest": {
+        "required": [
+          "code",
+          "name",
+          "customer"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "customer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateOrganizationRequest": {
+        "required": [
+          "organizationName",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateWorksiteRequest": {
+        "required": [
+          "code",
+          "name",
+          "address",
+          "jobOrderId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jobOrderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "CrewMemberPayload": {
+        "required": [
+          "userId",
+          "hours",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "CurrentUserDto": {
         "required": [
           "userId",
@@ -163,6 +870,233 @@
           }
         }
       },
+      "DailyReportActivityDto": {
+        "required": [
+          "description",
+          "quantity",
+          "unit"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "unit": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DailyReportAuditDto": {
+        "required": [
+          "action",
+          "actorId",
+          "actorName",
+          "version",
+          "occurredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DailyReportCrewDto": {
+        "required": [
+          "userId",
+          "displayName",
+          "hours",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "hours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DailyReportDetailDto": {
+        "required": [
+          "id",
+          "organizationId",
+          "worksiteId",
+          "worksiteCode",
+          "worksiteName",
+          "authorId",
+          "authorName",
+          "reportDate",
+          "notes",
+          "status",
+          "totalHours",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "crew",
+          "activities",
+          "safetyChecks",
+          "audit"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "worksiteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "worksiteCode": {
+            "type": "string"
+          },
+          "worksiteName": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "authorName": {
+            "type": "string"
+          },
+          "reportDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalHours": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "crew": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyReportCrewDto"
+            }
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyReportActivityDto"
+            }
+          },
+          "safetyChecks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyReportSafetyCheckDto"
+            }
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyReportAuditDto"
+            }
+          }
+        }
+      },
+      "DailyReportSafetyCheckDto": {
+        "required": [
+          "code",
+          "isCompliant",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "isCompliant": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "DailyReportSyncDto": {
         "required": [
           "id",
@@ -173,7 +1107,10 @@
           "notes",
           "status",
           "version",
-          "updatedAt"
+          "updatedAt",
+          "crew",
+          "activities",
+          "safetyChecks"
         ],
         "type": "object",
         "properties": {
@@ -217,6 +1154,24 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "crew": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrewMemberPayload"
+            }
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityPayload"
+            }
+          },
+          "safetyChecks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SafetyCheckPayload"
+            }
           }
         }
       },
@@ -231,6 +1186,51 @@
           }
         }
       },
+      "JobOrderDto": {
+        "required": [
+          "id",
+          "code",
+          "name",
+          "customer",
+          "isActive",
+          "version",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "customer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "JsonElement": {},
       "MembershipDto": {
         "required": [
@@ -241,6 +1241,26 @@
         "type": "object",
         "properties": {
           "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "OrganizationMemberDto": {
+        "required": [
+          "userId",
+          "displayName",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
             "type": "string",
             "format": "uuid"
           },
@@ -301,6 +1321,28 @@
           "serverTime": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "SafetyCheckPayload": {
+        "required": [
+          "code",
+          "isCompliant",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "isCompliant": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -382,6 +1424,103 @@
           }
         }
       },
+      "UpdateJobOrderRequest": {
+        "required": [
+          "name",
+          "customer",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isActive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "UpdateWorksiteRequest": {
+        "required": [
+          "name",
+          "address",
+          "jobOrderId",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "jobOrderId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "isActive": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
+      "UpsertMemberRequest": {
+        "required": [
+          "displayName",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "WorksiteDetailDto": {
+        "required": [
+          "worksite",
+          "assignments"
+        ],
+        "type": "object",
+        "properties": {
+          "worksite": {
+            "$ref": "#/components/schemas/WorksiteDto"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorksiteMemberDto"
+            }
+          }
+        }
+      },
       "WorksiteDto": {
         "required": [
           "id",
@@ -391,6 +1530,7 @@
           "jobOrderId",
           "jobOrderCode",
           "jobOrderName",
+          "isActive",
           "version",
           "updatedAt"
         ],
@@ -431,6 +1571,9 @@
               "string"
             ]
           },
+          "isActive": {
+            "type": "boolean"
+          },
           "version": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -444,6 +1587,26 @@
             "format": "date-time"
           }
         }
+      },
+      "WorksiteMemberDto": {
+        "required": [
+          "userId",
+          "displayName",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
       }
     }
   },
@@ -455,7 +1618,19 @@
       "name": "Identity"
     },
     {
+      "name": "Bootstrap"
+    },
+    {
+      "name": "Organization"
+    },
+    {
+      "name": "JobOrders"
+    },
+    {
       "name": "Worksites"
+    },
+    {
+      "name": "DailyReports"
     },
     {
       "name": "Sync"

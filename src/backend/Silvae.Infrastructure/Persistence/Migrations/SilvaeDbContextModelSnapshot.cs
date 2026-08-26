@@ -25,7 +25,6 @@ namespace Silvae.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReport", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("AuthorId")
@@ -67,10 +66,121 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.ToTable("daily_reports", (string)null);
                 });
 
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DailyReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("daily_report_activities", (string)null);
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportAuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DailyReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId", "OccurredAt");
+
+                    b.ToTable("daily_report_audit", (string)null);
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportCrewMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DailyReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Hours")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("daily_report_crew", (string)null);
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportSafetyCheck", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("DailyReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsCompliant")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("daily_report_safety_checks", (string)null);
+                });
+
             modelBuilder.Entity("Silvae.Domain.JobOrders.JobOrder", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Code")
@@ -110,7 +220,6 @@ namespace Silvae.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Silvae.Domain.Organizations.Organization", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Name")
@@ -149,7 +258,6 @@ namespace Silvae.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Silvae.Domain.Worksites.Worksite", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Address")
@@ -245,6 +353,42 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportActivity", b =>
+                {
+                    b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
+                        .WithMany("Activities")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportAuditEntry", b =>
+                {
+                    b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
+                        .WithMany("Audit")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportCrewMember", b =>
+                {
+                    b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
+                        .WithMany("Crew")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportSafetyCheck", b =>
+                {
+                    b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
+                        .WithMany("SafetyChecks")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Silvae.Domain.JobOrders.JobOrder", b =>
                 {
                     b.HasOne("Silvae.Domain.Organizations.Organization", null)
@@ -293,6 +437,17 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReport", b =>
+                {
+                    b.Navigation("Activities");
+
+                    b.Navigation("Audit");
+
+                    b.Navigation("Crew");
+
+                    b.Navigation("SafetyChecks");
                 });
 
             modelBuilder.Entity("Silvae.Domain.Worksites.Worksite", b =>

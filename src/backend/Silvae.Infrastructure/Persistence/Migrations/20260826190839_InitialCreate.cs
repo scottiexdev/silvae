@@ -169,6 +169,116 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "daily_report_activities",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    DailyReportId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    Quantity = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: true),
+                    Unit = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_daily_report_activities", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_daily_report_activities_daily_reports_DailyReportId",
+                        column: x => x.DailyReportId,
+                        principalTable: "daily_reports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "daily_report_audit",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    DailyReportId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Action = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    ActorId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false),
+                    OccurredAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_daily_report_audit", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_daily_report_audit_daily_reports_DailyReportId",
+                        column: x => x.DailyReportId,
+                        principalTable: "daily_reports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "daily_report_crew",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    DailyReportId = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Hours = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
+                    Note = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_daily_report_crew", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_daily_report_crew_daily_reports_DailyReportId",
+                        column: x => x.DailyReportId,
+                        principalTable: "daily_reports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "daily_report_safety_checks",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    DailyReportId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Code = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    IsCompliant = table.Column<bool>(type: "boolean", nullable: false),
+                    Note = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_daily_report_safety_checks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_daily_report_safety_checks_daily_reports_DailyReportId",
+                        column: x => x.DailyReportId,
+                        principalTable: "daily_reports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_daily_report_activities_DailyReportId",
+                table: "daily_report_activities",
+                column: "DailyReportId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_daily_report_audit_DailyReportId_OccurredAt",
+                table: "daily_report_audit",
+                columns: new[] { "DailyReportId", "OccurredAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_daily_report_crew_DailyReportId",
+                table: "daily_report_crew",
+                column: "DailyReportId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_daily_report_crew_UserId",
+                table: "daily_report_crew",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_daily_report_safety_checks_DailyReportId",
+                table: "daily_report_safety_checks",
+                column: "DailyReportId");
+
             migrationBuilder.CreateIndex(
                 name: "IX_daily_reports_OrganizationId_UpdatedAt",
                 table: "daily_reports",
@@ -211,7 +321,16 @@ namespace Silvae.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "daily_reports");
+                name: "daily_report_activities");
+
+            migrationBuilder.DropTable(
+                name: "daily_report_audit");
+
+            migrationBuilder.DropTable(
+                name: "daily_report_crew");
+
+            migrationBuilder.DropTable(
+                name: "daily_report_safety_checks");
 
             migrationBuilder.DropTable(
                 name: "processed_sync_operations");
@@ -221,6 +340,9 @@ namespace Silvae.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "worksite_assignments");
+
+            migrationBuilder.DropTable(
+                name: "daily_reports");
 
             migrationBuilder.DropTable(
                 name: "worksites");

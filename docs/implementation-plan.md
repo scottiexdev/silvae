@@ -221,18 +221,37 @@ silvae/
 
 ### Milestone 2 — Rapportino MVP
 
-Prerequisito non previsto originariamente: l'anagrafica va resa scrivibile.
-Commesse, cantieri e assegnazioni esistono nel dominio ma nessun endpoint le
-crea, quindi oggi non si può popolare un ambiente né provare l'app dal vivo.
+**Blocker urgente, scoperto in fase di primo deploy (2026-08-26):** il
+database locale usa `sqflite`, che su Flutter Web non ha alcuna
+implementazione — `getDatabasesPath()`/`openDatabase()` lanciano
+un'eccezione non gestita all'avvio, prima ancora di disegnare la UI. Il
+sito statico `silvae-web` costruito da `scripts/render-build-web.sh` e
+pubblicato su Render è quindi **inutilizzabile così com'è**: mostra una
+pagina bianca a ogni utente. Va risolto prima di considerare qualunque
+altro punto di questa milestone, aggiungendo il supporto web al database
+locale (es. `sqflite_common_ffi_web`, o un backend alternativo condizionato
+su `kIsWeb`) in
+[`local_database.dart`](../src/mobile/silvae_app/lib/core/database/local_database.dart).
+Nota anche la tensione con la sezione 12, che rinvia esplicitamente il
+supporto web Flutter: il Blueprint Render lo dà per scontato, la roadmap
+no — va riconciliato quando si risolve il blocker.
 
-- Anagrafica scrivibile con autorizzazione per ruolo.
-- Membri della squadra e ore lavorate.
-- Attività eseguite e note.
-- Checklist DPI e sicurezza.
+Prerequisito non previsto originariamente, ora risolto: l'anagrafica è
+scrivibile. Il bootstrap della prima organizzazione (ADR 004), i membri, le
+commesse, i cantieri e le assegnazioni sono endpoint autorizzati per ruolo, e
+un ambiente vuoto si popola via HTTP. Mancano le schermate corrispondenti:
+oggi ci si passa chiamando l'API.
+
+Il contenuto del rapportino esiste sul backend: squadra con le ore,
+lavorazioni, checklist di sicurezza, stati e audit di chi li ha mossi
+(ADR 005). Restano l'interfaccia e le parti che dipendono da scelte ancora
+aperte.
+
+- Schermate di anagrafica per commesse, cantieri e squadre.
+- Schermata di compilazione del rapportino: squadra, ore, attività e
+  checklist.
 - Foto geolocalizzate.
 - Firma o conferma del caposquadra.
-- Stati `Draft`, `Submitted`, `Approved`, `Reopened`.
-- Audit delle modifiche.
 - Gestione esplicita dei conflitti.
 
 **Completata quando:** un rapportino reale della cooperativa può essere compilato integralmente senza carta.

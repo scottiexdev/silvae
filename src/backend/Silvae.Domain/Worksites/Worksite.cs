@@ -56,7 +56,31 @@ public sealed class Worksite
         if (_assignments.All(item => item.UserId != userId))
         {
             _assignments.Add(new WorksiteAssignment(Id, userId));
+            Touch();
         }
+    }
+
+    /// <summary>
+    /// Toglie l'operatore dal cantiere. Non cancella i rapportini che ha già
+    /// compilato: l'assegnazione dice chi ci lavora oggi, non chi ci ha
+    /// lavorato.
+    /// </summary>
+    public void Unassign(Guid userId)
+    {
+        var assignment = _assignments.SingleOrDefault(item => item.UserId == userId);
+        if (assignment is null)
+        {
+            return;
+        }
+
+        _assignments.Remove(assignment);
+        Touch();
+    }
+
+    public void Rename(string name)
+    {
+        Name = RequireText(name, nameof(name));
+        Touch();
     }
 
     public void SetAddress(string? address)
@@ -75,6 +99,28 @@ public sealed class Worksite
         }
 
         JobOrderId = jobOrderId;
+        Touch();
+    }
+
+    public void Close()
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        IsActive = false;
+        Touch();
+    }
+
+    public void Reopen()
+    {
+        if (IsActive)
+        {
+            return;
+        }
+
+        IsActive = true;
         Touch();
     }
 

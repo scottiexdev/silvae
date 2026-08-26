@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Silvae.Application.Abstractions;
+using Silvae.Infrastructure.Configuration;
 using Silvae.Infrastructure.Persistence;
 
 namespace Silvae.Infrastructure;
@@ -35,6 +36,7 @@ public static class DependencyInjection
             }
         });
         services.AddScoped<ISilvaeStore, EfSilvaeStore>();
+        services.AddSingleton<IBootstrapSecret, ConfigurationBootstrapSecret>();
 
         return services;
     }

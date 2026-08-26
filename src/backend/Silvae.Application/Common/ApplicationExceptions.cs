@@ -11,6 +11,15 @@ public sealed class OrganizationAccessDeniedException()
 public sealed class ResourceAccessDeniedException(string message)
     : SilvaeApplicationException(message);
 
+public sealed class ResourceNotFoundException(string message)
+    : SilvaeApplicationException(message);
+
+public sealed class RegistryValidationException(string message)
+    : SilvaeApplicationException(message);
+
+public sealed class RegistryConflictException(string message)
+    : SilvaeApplicationException(message);
+
 public sealed class SyncValidationException(string message)
     : SilvaeApplicationException(message);
 

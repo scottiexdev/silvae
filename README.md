@@ -44,6 +44,67 @@ flutter run \
 
 In assenza dei quattro valori l'app mostra una pagina di configurazione e non
 prova ad aprire sessioni o database remoti.
+## Anagrafica e primo accesso
+
+Su un database vuoto nessuno appartiene a un'organizzazione e `GET /api/me`
+risponde 403 a chiunque. La prima organizzazione, con il suo amministratore,
+nasce da `POST /api/bootstrap/organization`, che richiede insieme un token
+Supabase valido e l'header `X-Bootstrap-Secret` uguale a
+`SILVAE_BOOTSTRAP_SECRET`. Senza quella variabile l'endpoint è chiuso. La
+decisione è in
+[`docs/adr/004-bootstrap-organizzazione.md`](docs/adr/004-bootstrap-organizzazione.md),
+la procedura in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Da lì l'anagrafica si scrive via API. Commesse, cantieri e assegnazioni sono
+riservati ad `Administrator` e `Coordinator`; i membri dell'organizzazione al
+solo `Administrator`.
+
+| Metodo | Percorso | Cosa fa |
+| --- | --- | --- |
+| `GET` | `/api/organization/members` | elenca chi appartiene all'organizzazione |
+| `PUT` | `/api/organization/members/{userId}` | aggiunge una persona o ne cambia ruolo e nome |
+| `DELETE` | `/api/organization/members/{userId}` | la toglie, insieme alle sue assegnazioni |
+| `GET` `POST` | `/api/job-orders` | elenca e crea commesse |
+| `PATCH` | `/api/job-orders/{id}` | rinomina, cambia cliente, chiude o riapre |
+| `GET` | `/api/worksites` | i cantieri assegnati; con `?includeInactive=true` anche i chiusi, per chi coordina |
+| `POST` | `/api/worksites` | crea un cantiere, con o senza commessa |
+| `GET` `PATCH` | `/api/worksites/{id}` | scheda con la squadra; rinomina, sposta di commessa, chiude o riapre |
+| `PUT` `DELETE` | `/api/worksites/{id}/assignments/{userId}` | assegna o toglie un operatore |
+
+L'identificativo di una persona è quello del suo utente Supabase: l'API concede
+l'accesso a un account che esiste, non lo crea. L'ultimo amministratore non può
+essere né degradato né rimosso.
+
+## Rapportino
+
+Il rapportino contiene cantiere, data, note, squadra con le ore, lavorazioni
+eseguite e checklist di sicurezza, e percorre gli stati `Draft`, `Submitted`,
+`Approved` e `Reopened` registrando in un audit chi lo ha mosso e quando. Le
+regole sono in
+[`docs/adr/005-contenuto-del-rapportino.md`](docs/adr/005-contenuto-del-rapportino.md).
+
+Quello che accade in cantiere passa dalla coda di sincronizzazione, perché deve
+funzionare senza rete: `POST /api/sync/push` accetta le operazioni `upsert` e
+`submit`, entrambe con versione attesa e identificativo che le rende ripetibili
+senza duplicati. L'upsert sostituisce il contenuto del rapportino; una lista
+assente dal payload lascia intatta quella già registrata, una lista vuota la
+cancella.
+
+Quello che accade in ufficio è online e passa da endpoint diretti.
+
+| Metodo | Percorso | Cosa fa |
+| --- | --- | --- |
+| `GET` | `/api/daily-reports/{id}` | scheda con squadra, attività, sicurezza e audit |
+| `POST` | `/api/daily-reports/{id}/submit` | invia il rapportino |
+| `POST` | `/api/daily-reports/{id}/approve` | approva, riservato ad `Administrator` e `Coordinator` |
+| `POST` | `/api/daily-reports/{id}/reopen` | riapre un rapportino inviato o approvato |
+
+Un rapportino senza squadra non può essere inviato, una persona non può
+comparire due volte, le ore stanno fra 0 escluso e 24 e una voce di sicurezza
+non conforme richiede una nota.
+
+L'app non compila ancora questi campi: le schermate arrivano dopo, e fino ad
+allora il rapportino sincronizzato dal telefono resta quello minimo.
 
 ## Verifica
 

@@ -22,6 +22,18 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
 
     public DbSet<DailyReport> DailyReports => Set<DailyReport>();
 
+    public DbSet<DailyReportCrewMember> DailyReportCrew =>
+        Set<DailyReportCrewMember>();
+
+    public DbSet<DailyReportActivity> DailyReportActivities =>
+        Set<DailyReportActivity>();
+
+    public DbSet<DailyReportSafetyCheck> DailyReportSafetyChecks =>
+        Set<DailyReportSafetyCheck>();
+
+    public DbSet<DailyReportAuditEntry> DailyReportAudit =>
+        Set<DailyReportAuditEntry>();
+
     public DbSet<ProcessedSyncOperationEntity> ProcessedSyncOperations =>
         Set<ProcessedSyncOperationEntity>();
 
@@ -31,6 +43,7 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
         {
             entity.ToTable("organizations");
             entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
             entity.Property(item => item.Name).HasMaxLength(200);
         });
 
@@ -50,6 +63,7 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
         {
             entity.ToTable("job_orders");
             entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
             entity.Property(item => item.Code).HasMaxLength(64);
             entity.Property(item => item.Name).HasMaxLength(200);
             entity.Property(item => item.Customer).HasMaxLength(200);
@@ -64,6 +78,7 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
         {
             entity.ToTable("worksites");
             entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
             entity.Property(item => item.Code).HasMaxLength(64);
             entity.Property(item => item.Name).HasMaxLength(200);
             entity.Property(item => item.Address).HasMaxLength(500);
@@ -96,6 +111,7 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
         {
             entity.ToTable("daily_reports");
             entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
             entity.Property(item => item.Notes).HasMaxLength(4000);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
             entity.HasIndex(item => new
@@ -111,6 +127,71 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
                 .WithMany()
                 .HasForeignKey(item => item.WorksiteId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(item => item.Crew)
+                .WithOne()
+                .HasForeignKey(item => item.DailyReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(item => item.Activities)
+                .WithOne()
+                .HasForeignKey(item => item.DailyReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(item => item.SafetyChecks)
+                .WithOne()
+                .HasForeignKey(item => item.DailyReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(item => item.Audit)
+                .WithOne()
+                .HasForeignKey(item => item.DailyReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Navigation(item => item.Crew)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+            entity.Navigation(item => item.Activities)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+            entity.Navigation(item => item.SafetyChecks)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+            entity.Navigation(item => item.Audit)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<DailyReportCrewMember>(entity =>
+        {
+            entity.ToTable("daily_report_crew");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Hours).HasPrecision(5, 2);
+            entity.Property(item => item.Note).HasMaxLength(500);
+            entity.HasIndex(item => item.DailyReportId);
+            entity.HasIndex(item => item.UserId);
+        });
+
+        modelBuilder.Entity<DailyReportActivity>(entity =>
+        {
+            entity.ToTable("daily_report_activities");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Description).HasMaxLength(500);
+            entity.Property(item => item.Quantity).HasPrecision(12, 2);
+            entity.Property(item => item.Unit).HasMaxLength(16);
+            entity.HasIndex(item => item.DailyReportId);
+        });
+
+        modelBuilder.Entity<DailyReportSafetyCheck>(entity =>
+        {
+            entity.ToTable("daily_report_safety_checks");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Code).HasMaxLength(64);
+            entity.Property(item => item.Note).HasMaxLength(500);
+            entity.HasIndex(item => item.DailyReportId);
+        });
+
+        modelBuilder.Entity<DailyReportAuditEntry>(entity =>
+        {
+            entity.ToTable("daily_report_audit");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Action).HasConversion<string>().HasMaxLength(32);
+            entity.HasIndex(item => new { item.DailyReportId, item.OccurredAt });
         });
 
         modelBuilder.Entity<ProcessedSyncOperationEntity>(entity =>
