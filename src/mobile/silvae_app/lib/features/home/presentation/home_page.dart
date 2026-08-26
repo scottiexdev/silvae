@@ -32,9 +32,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
-    final result = await showDialog<_NewReport>(
+    final result = await showDialog<_ReportDraft>(
       context: context,
-      builder: (context) => _NewReportDialog(worksites: worksites),
+      builder: (context) => _ReportDialog(worksites: worksites),
     );
     if (result == null) {
       return;
@@ -51,6 +51,37 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rapportino salvato sul dispositivo.')),
+      );
+    }
+  }
+
+  Future<void> _editReport(DailyReport report, List<Worksite> worksites) async {
+    if (worksites.isEmpty) {
+      return;
+    }
+
+    final result = await showDialog<_ReportDraft>(
+      context: context,
+      builder: (context) =>
+          _ReportDialog(worksites: worksites, initial: report),
+    );
+    if (result == null) {
+      return;
+    }
+
+    await ref
+        .read(reportRepositoryProvider)
+        .updateOffline(
+          reportId: report.id,
+          worksiteId: result.worksiteId,
+          reportDate: result.date,
+          expectedVersion: report.version,
+          notes: result.notes,
+        );
+    ref.invalidate(dailyReportsProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Modifica salvata sul dispositivo.')),
       );
     }
   }
@@ -113,6 +144,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                                     (item) => item.id == report.worksiteId,
                                   )
                                   .firstOrNull,
+                              onEdit: () => _editReport(
+                                report,
+                                worksites.value ?? const [],
+                              ),
                             ),
                           )
                           .toList(growable: false),
@@ -134,10 +169,21 @@ class _HomePageState extends ConsumerState<HomePage> {
 }
 
 class _ReportCard extends StatelessWidget {
-  const _ReportCard({required this.report, this.worksite});
+  const _ReportCard({
+    required this.report,
+    required this.onEdit,
+    this.worksite,
+  });
 
   final DailyReport report;
   final Worksite? worksite;
+  final VoidCallback onEdit;
+
+  /// Il server accetta modifiche soltanto su bozza o rapportino riaperto, e
+  /// un conflitto va risolto prima di accodare altre modifiche.
+  bool get _isEditable =>
+      (report.status == 'Draft' || report.status == 'Reopened') &&
+      report.syncStatus != ReportSyncStatus.conflict;
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +198,11 @@ class _ReportCard extends StatelessWidget {
         Icons.cloud_done,
         'Sincronizzato',
         Colors.green,
+      ),
+      ReportSyncStatus.conflict => (
+        Icons.merge_type,
+        'Modificato anche altrove',
+        Colors.orange,
       ),
       ReportSyncStatus.error => (
         Icons.sync_problem,
@@ -169,6 +220,8 @@ class _ReportCard extends StatelessWidget {
         ),
         isThreeLine: true,
         leading: Icon(icon, color: color),
+        trailing: _isEditable ? const Icon(Icons.edit_outlined) : null,
+        onTap: _isEditable ? onEdit : null,
       ),
     );
   }
@@ -188,26 +241,38 @@ class _EmptyReports extends StatelessWidget {
   }
 }
 
-final class _NewReport {
-  const _NewReport({required this.worksiteId, required this.date, this.notes});
+final class _ReportDraft {
+  const _ReportDraft({
+    required this.worksiteId,
+    required this.date,
+    this.notes,
+  });
 
   final String worksiteId;
   final DateTime date;
   final String? notes;
 }
 
-class _NewReportDialog extends StatefulWidget {
-  const _NewReportDialog({required this.worksites});
+class _ReportDialog extends StatefulWidget {
+  const _ReportDialog({required this.worksites, this.initial});
 
   final List<Worksite> worksites;
+  final DailyReport? initial;
 
   @override
-  State<_NewReportDialog> createState() => _NewReportDialogState();
+  State<_ReportDialog> createState() => _ReportDialogState();
 }
 
-class _NewReportDialogState extends State<_NewReportDialog> {
-  late String _worksiteId = widget.worksites.first.id;
-  final _notesController = TextEditingController();
+class _ReportDialogState extends State<_ReportDialog> {
+  /// Un rapportino può puntare a un cantiere non più assegnato: in quel caso
+  /// il menu non contiene il suo id e ricadiamo sul primo disponibile.
+  late String _worksiteId =
+      widget.worksites.any((item) => item.id == widget.initial?.worksiteId)
+      ? widget.initial!.worksiteId
+      : widget.worksites.first.id;
+  late final _notesController = TextEditingController(
+    text: widget.initial?.notes ?? '',
+  );
 
   @override
   void dispose() {
@@ -217,8 +282,9 @@ class _NewReportDialogState extends State<_NewReportDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.initial != null;
     return AlertDialog(
-      title: const Text('Nuovo rapportino'),
+      title: Text(isEditing ? 'Modifica rapportino' : 'Nuovo rapportino'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -255,9 +321,9 @@ class _NewReportDialogState extends State<_NewReportDialog> {
         FilledButton(
           onPressed: () => Navigator.pop(
             context,
-            _NewReport(
+            _ReportDraft(
               worksiteId: _worksiteId,
-              date: DateTime.now(),
+              date: widget.initial?.reportDate ?? DateTime.now(),
               notes: _notesController.text,
             ),
           ),

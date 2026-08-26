@@ -1,4 +1,4 @@
-enum ReportSyncStatus { device, syncing, synced, error }
+enum ReportSyncStatus { device, syncing, synced, conflict, error }
 
 final class DailyReport {
   const DailyReport({
@@ -24,6 +24,7 @@ final class DailyReport {
     syncStatus: switch (row['sync_status']) {
       'synced' => ReportSyncStatus.synced,
       'processing' => ReportSyncStatus.syncing,
+      'conflict' => ReportSyncStatus.conflict,
       'error' => ReportSyncStatus.error,
       _ => ReportSyncStatus.device,
     },

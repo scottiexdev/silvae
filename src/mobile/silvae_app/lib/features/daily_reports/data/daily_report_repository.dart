@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:silvae_api_client/silvae_api_client.dart' as api;
 import 'package:silvae_app/core/database/local_database.dart';
 import 'package:silvae_app/features/daily_reports/domain/daily_report.dart';
@@ -103,7 +104,59 @@ final class DailyReportRepository {
     return reportId;
   }
 
+  /// Aggiorna un rapportino già presente sul dispositivo. Le modifiche
+  /// successive allo stesso rapportino confluiscono nell'operazione già in
+  /// coda invece di accodarne una seconda: due upsert consecutivi con la
+  /// stessa versione attesa produrrebbero un conflitto garantito.
+  Future<void> updateOffline({
+    required String reportId,
+    required String worksiteId,
+    required DateTime reportDate,
+    required int expectedVersion,
+    String? notes,
+  }) async {
+    final now = DateTime.now().toUtc();
+    final normalizedDate = DateTime.utc(
+      reportDate.year,
+      reportDate.month,
+      reportDate.day,
+    );
+    final trimmedNotes = notes?.trim();
+    final payload = {
+      'worksiteId': worksiteId,
+      'reportDate': _dateOnly(normalizedDate),
+      'notes': trimmedNotes == null || trimmedNotes.isEmpty
+          ? null
+          : trimmedNotes,
+    };
+
+    await _localDatabase.updateOfflineReport(
+      reportId: reportId,
+      report: {
+        'worksite_id': worksiteId,
+        'report_date': _dateOnly(normalizedDate),
+        'notes': payload['notes'],
+        'sync_status': 'device',
+        'updated_at': now.toIso8601String(),
+      },
+      operation: {
+        'operation_id': _uuid.v4(),
+        'organization_id': _organizationId,
+        'entity_id': reportId,
+        'entity_type': 'dailyReport',
+        'operation_type': 'upsert',
+        'expected_version': expectedVersion,
+        'payload': jsonEncode(payload),
+        'created_at': now.toIso8601String(),
+        'attempts': 0,
+        'last_error': null,
+        'status': 'pending',
+      },
+    );
+  }
+
   Future<void> synchronize() async {
+    await _localDatabase.recoverInterruptedOperations();
     final operations = await _localDatabase.getPendingOperations();
     for (final row in operations) {
       final operationId = row['operation_id']! as String;
@@ -127,6 +180,12 @@ final class DailyReportRepository {
           entityId: result.entityId,
           version: result.version,
         );
+      } on DioException catch (error) {
+        if (error.response?.statusCode == 409) {
+          await _localDatabase.markConflict(operationId, error.toString());
+        } else {
+          await _localDatabase.markFailed(operationId, error.toString());
+        }
       } on Object catch (error) {
         await _localDatabase.markFailed(operationId, error.toString());
       }

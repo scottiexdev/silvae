@@ -108,6 +108,57 @@ final class LocalDatabase {
     });
   }
 
+  Future<void> updateOfflineReport({
+    required String reportId,
+    required Map<String, Object?> report,
+    required Map<String, Object?> operation,
+  }) async {
+    await database.transaction((transaction) async {
+      await transaction.update(
+        'daily_reports',
+        report,
+        where: 'id = ?',
+        whereArgs: [reportId],
+      );
+      final queued = await transaction.query(
+        'outbox',
+        columns: ['operation_id'],
+        where: 'entity_id = ? AND status IN (?, ?, ?)',
+        whereArgs: [reportId, 'pending', 'failed', 'processing'],
+        orderBy: 'created_at',
+        limit: 1,
+      );
+      if (queued.isEmpty) {
+        await transaction.insert(
+          'outbox',
+          operation,
+          conflictAlgorithm: ConflictAlgorithm.abort,
+        );
+        return;
+      }
+      await transaction.update(
+        'outbox',
+        {
+          'payload': operation['payload'],
+          'status': 'pending',
+          'last_error': null,
+        },
+        where: 'operation_id = ?',
+        whereArgs: [queued.single['operation_id']],
+      );
+    });
+  }
+
+  /// Riporta a `pending` le operazioni interrotte a metà invio, per esempio da
+  /// una chiusura forzata dell'app. Il push è idempotente lato server, quindi
+  /// un rinvio non duplica il rapportino.
+  Future<int> recoverInterruptedOperations() => database.update(
+    'outbox',
+    {'status': 'pending'},
+    where: 'status = ?',
+    whereArgs: ['processing'],
+  );
+
   Future<List<Map<String, Object?>>> getPendingOperations() => database.query(
     'outbox',
     where: 'status IN (?, ?)',
@@ -144,14 +195,26 @@ final class LocalDatabase {
     });
   }
 
-  Future<void> markFailed(String operationId, String error) async {
+  Future<void> markFailed(String operationId, String error) =>
+      _markUnsuccessful(operationId, 'failed', error);
+
+  /// Una versione attesa divergente non si risolve ritentando: l'operazione
+  /// esce dalla coda e attende una decisione esplicita.
+  Future<void> markConflict(String operationId, String error) =>
+      _markUnsuccessful(operationId, 'conflict', error);
+
+  Future<void> _markUnsuccessful(
+    String operationId,
+    String status,
+    String error,
+  ) async {
     await database.rawUpdate(
       '''
         UPDATE outbox
         SET status = ?, attempts = attempts + 1, last_error = ?
         WHERE operation_id = ?
       ''',
-      ['failed', error, operationId],
+      [status, error, operationId],
     );
     final rows = await database.query(
       'outbox',
@@ -163,7 +226,7 @@ final class LocalDatabase {
     if (rows.isNotEmpty) {
       await database.update(
         'daily_reports',
-        {'sync_status': 'error'},
+        {'sync_status': status == 'conflict' ? 'conflict' : 'error'},
         where: 'id = ?',
         whereArgs: [rows.single['entity_id']],
       );
