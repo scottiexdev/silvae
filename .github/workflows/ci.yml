@@ -3,6 +3,10 @@ name: ci
 on:
   push:
   pull_request:
+  # Un run che fallisce all'avvio, prima di qualsiasi job, non è ripetibile da
+  # GitHub: senza un innesco manuale l'unico modo di riprovare sarebbe un
+  # commit inventato.
+  workflow_dispatch:
 
 jobs:
   backend:
