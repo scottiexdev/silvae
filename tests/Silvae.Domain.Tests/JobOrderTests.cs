@@ -9,7 +9,7 @@ public sealed class JobOrderTests
     private static readonly Guid OrganizationId = Guid.NewGuid();
 
     [Fact]
-    public void A_job_order_normalizes_text_and_starts_active()
+    public void JobOrderNormalizesTextAndStartsActive()
     {
         var jobOrder = new JobOrder(
             Guid.NewGuid(),
@@ -26,7 +26,7 @@ public sealed class JobOrderTests
     }
 
     [Fact]
-    public void A_blank_customer_becomes_null()
+    public void BlankCustomerBecomesNull()
     {
         var jobOrder = new JobOrder(
             Guid.NewGuid(),
@@ -39,7 +39,7 @@ public sealed class JobOrderTests
     }
 
     [Fact]
-    public void Closing_a_job_order_twice_bumps_the_version_once()
+    public void ClosingTwiceBumpsTheVersionOnce()
     {
         var jobOrder = new JobOrder(
             Guid.NewGuid(),
@@ -55,7 +55,7 @@ public sealed class JobOrderTests
     }
 
     [Fact]
-    public void A_worksite_starts_without_a_job_order_and_can_be_attached()
+    public void WorksiteStartsWithoutJobOrderAndCanBeAttached()
     {
         var worksite = new Worksite(
             Guid.NewGuid(),
@@ -72,7 +72,7 @@ public sealed class JobOrderTests
     }
 
     [Fact]
-    public void An_empty_job_order_id_is_rejected()
+    public void EmptyJobOrderIdIsRejected()
     {
         var worksite = new Worksite(
             Guid.NewGuid(),

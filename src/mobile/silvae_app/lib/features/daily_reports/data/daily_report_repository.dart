@@ -158,8 +158,7 @@ final class DailyReportRepository {
     );
   }
 
-  Future<bool> hasPendingOperations() =>
-      _localDatabase.hasPendingOperations();
+  Future<bool> hasPendingOperations() => _localDatabase.hasPendingOperations();
 
   Future<void> synchronize() async {
     await _localDatabase.recoverInterruptedOperations();

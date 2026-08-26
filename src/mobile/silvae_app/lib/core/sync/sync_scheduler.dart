@@ -12,14 +12,17 @@ import 'package:silvae_app/features/daily_reports/data/daily_report_repository.d
 final class SyncScheduler {
   SyncScheduler(
     this._repository, {
-    Duration firstRetry = const Duration(seconds: 15),
-    Duration maxRetry = const Duration(minutes: 5),
-  }) : _firstRetry = firstRetry,
-       _maxRetry = maxRetry;
+    this.firstRetry = const Duration(seconds: 15),
+    this.maxRetry = const Duration(minutes: 5),
+  });
 
   final DailyReportRepository _repository;
-  final Duration _firstRetry;
-  final Duration _maxRetry;
+
+  /// Attesa del primo tentativo dopo un fallimento.
+  final Duration firstRetry;
+
+  /// Tetto oltre cui l'attesa non cresce più.
+  final Duration maxRetry;
 
   Timer? _timer;
   Duration? _nextRetry;
@@ -53,12 +56,12 @@ final class SyncScheduler {
       return;
     }
 
-    final delay = _nextRetry ?? _firstRetry;
+    final delay = _nextRetry ?? firstRetry;
     _nextRetry = _capped(delay * 2);
     _timer = Timer(delay, syncNow);
   }
 
-  Duration _capped(Duration delay) => delay > _maxRetry ? _maxRetry : delay;
+  Duration _capped(Duration delay) => delay > maxRetry ? maxRetry : delay;
 
   void _cancelTimer() {
     _timer?.cancel();

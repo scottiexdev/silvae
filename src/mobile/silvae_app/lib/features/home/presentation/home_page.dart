@@ -324,10 +324,8 @@ class _ReportDialogState extends State<_ReportDialog> {
             decoration: const InputDecoration(labelText: 'Cantiere'),
             items: widget.worksites
                 .map(
-                  (item) => DropdownMenuItem(
-                    value: item.id,
-                    child: Text(item.label),
-                  ),
+                  (item) =>
+                      DropdownMenuItem(value: item.id, child: Text(item.label)),
                 )
                 .toList(growable: false),
             onChanged: (value) => _worksiteId = value!,
