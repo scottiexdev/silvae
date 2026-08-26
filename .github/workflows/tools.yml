@@ -21,6 +21,10 @@ jobs:
       - name: Install dotnet-ef
         run: dotnet tool install --global dotnet-ef
 
+      # dotnet ef legge i metadati del progetto e li pretende già ripristinati.
+      - name: Restore
+        run: dotnet restore Silvae.sln
+
       - name: Regenerate the initial migration with its model snapshot
         run: |
           rm -rf src/backend/Silvae.Infrastructure/Persistence/Migrations
