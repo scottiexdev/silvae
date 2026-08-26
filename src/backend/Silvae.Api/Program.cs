@@ -72,6 +72,33 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         await database.Database.EnsureCreatedAsync();
     }
+
+    // Dati minimi per provare l'app dal vivo. Solo in sviluppo: in qualsiasi
+    // altro ambiente creare da sé un'organizzazione e una membership da
+    // amministratore significherebbe fabbricare un accesso.
+    if (app.Environment.IsDevelopment())
+    {
+        var seedUserId = app.Configuration["SILVAE_SEED_USER_ID"];
+        if (Guid.TryParse(seedUserId, out var userId))
+        {
+            var seeded = await DevelopmentSeed.ApplyAsync(
+                database,
+                userId,
+                app.Configuration["SILVAE_SEED_DISPLAY_NAME"] ?? "Operatore di prova",
+                CancellationToken.None);
+            if (seeded)
+            {
+                app.Logger.LogInformation(
+                    "Dati di sviluppo inseriti. Organizzazione {OrganizationId}.",
+                    DevelopmentSeed.OrganizationId);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(seedUserId))
+        {
+            app.Logger.LogWarning(
+                "SILVAE_SEED_USER_ID non è un UUID valido: dati di sviluppo non inseriti.");
+        }
+    }
 }
 
 app.UseForwardedHeaders();
