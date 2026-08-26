@@ -20,6 +20,12 @@ flutter config --enable-web --no-analytics
 
 cd src/mobile/silvae_app
 flutter pub get
+
+# Scarica sqlite3.wasm: sul web il database locale gira in WebAssembly.
+# Il worker condiviso non viene usato, quindi si butta via.
+dart run sqflite_common_ffi_web:setup --force
+rm -f web/sqflite_sw.js
+
 flutter build web --release \
   --dart-define="SILVAE_API_BASE_URL=${SILVAE_API_BASE_URL}" \
   --dart-define="SILVAE_SUPABASE_URL=${SILVAE_SUPABASE_URL}" \

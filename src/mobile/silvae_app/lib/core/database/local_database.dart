@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:path/path.dart' as p;
+import 'package:silvae_app/core/database/database_opener.dart';
 import 'package:sqflite/sqflite.dart';
 
 final class LocalDatabase {
@@ -9,13 +9,14 @@ final class LocalDatabase {
   final Database database;
 
   static Future<LocalDatabase> open() async {
-    final root = await getDatabasesPath();
-    final database = await openDatabase(
-      p.join(root, 'silvae.db'),
-      version: 2,
-      onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
-      onCreate: _createSchema,
-      onUpgrade: _upgradeSchema,
+    final database = await localDatabaseFactory().openDatabase(
+      await localDatabasePath(),
+      options: OpenDatabaseOptions(
+        version: 2,
+        onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
+        onCreate: _createSchema,
+        onUpgrade: _upgradeSchema,
+      ),
     );
     return LocalDatabase(database);
   }

@@ -44,6 +44,15 @@ flutter run \
 
 In assenza dei quattro valori l'app mostra una pagina di configurazione e non
 prova ad aprire sessioni o database remoti.
+
+Per la versione web serve `web/sqlite3.wasm`: il database locale è SQLite
+compilato in WebAssembly. È già nella repository; si rigenera con
+
+```bash
+cd src/mobile/silvae_app
+dart run sqflite_common_ffi_web:setup --force && rm -f web/sqflite_sw.js
+```
+
 ## Anagrafica e primo accesso
 
 Su un database vuoto nessuno appartiene a un'organizzazione e `GET /api/me`

@@ -22,7 +22,10 @@ Manca l'interfaccia. Né l'anagrafica né il rapportino nuovo hanno schermate:
 tutto questo si esercita chiamando l'API, e l'app continua a sincronizzare il
 rapportino minimo della Milestone 1.
 
-**Nessuno l'ha però mai visto girare davvero.** Lo stack di pubblicazione
+L'app gira su Flutter Web: il database locale sceglie l'implementazione per
+piattaforma, verificato in un browser fino alla schermata di accesso.
+
+**Nessuno l'ha però mai visto girare davvero con dati veri.** Lo stack di pubblicazione
 (Render + Supabase) è pronto e verificato in CI, ma non è mai stato eseguito:
 non esiste ancora un progetto Supabase. Manca anche il modo di provarlo in
 locale, perché senza Supabase non esiste un'identità: servirebbe
@@ -52,6 +55,12 @@ Sono tutte cose che hanno già rotto la CI almeno una volta.
   Eseguirlo e basta.
 - **`flutter analyze` fallisce anche sui semplici `info`**, non solo sugli
   errori.
+- **Sul web il database locale non usa il worker condiviso.**
+  `databaseFactoryFfiWeb` fallisce l'apertura con `unsupported result null`:
+  il `sqflite_sw.js` precompilato non risponde alla `openDatabase` di
+  `sqflite_common`. Si usa `databaseFactoryFfiWebNoWebWorker`, che gira
+  sull'isolate principale. Serve `web/sqlite3.wasm`, che produce
+  `dart run sqflite_common_ffi_web:setup`: senza, l'app web muore all'avvio.
 - **Le migrazioni EF sono codice generato** e `.editorconfig` le esenta dagli
   analizzatori, altrimenti una migrazione appena prodotta non compila
   (`CA1861`). Il `Dockerfile` deve quindi copiare `.editorconfig`, altrimenti

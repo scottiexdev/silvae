@@ -221,20 +221,33 @@ silvae/
 
 ### Milestone 2 — Rapportino MVP
 
-**Blocker urgente, scoperto in fase di primo deploy (2026-08-26):** il
-database locale usa `sqflite`, che su Flutter Web non ha alcuna
-implementazione — `getDatabasesPath()`/`openDatabase()` lanciano
-un'eccezione non gestita all'avvio, prima ancora di disegnare la UI. Il
-sito statico `silvae-web` costruito da `scripts/render-build-web.sh` e
-pubblicato su Render è quindi **inutilizzabile così com'è**: mostra una
-pagina bianca a ogni utente. Va risolto prima di considerare qualunque
-altro punto di questa milestone, aggiungendo il supporto web al database
-locale (es. `sqflite_common_ffi_web`, o un backend alternativo condizionato
-su `kIsWeb`) in
-[`local_database.dart`](../src/mobile/silvae_app/lib/core/database/local_database.dart).
-Nota anche la tensione con la sezione 12, che rinvia esplicitamente il
-supporto web Flutter: il Blueprint Render lo dà per scontato, la roadmap
-no — va riconciliato quando si risolve il blocker.
+**Blocker risolto (2026-08-26):** il database locale usava `sqflite`, che su
+Flutter Web non ha alcuna implementazione — `getDatabasesPath()` lanciava
+un'eccezione non gestita all'avvio, prima ancora di disegnare la UI, e il sito
+statico `silvae-web` mostrava una pagina bianca a ogni utente. Ora
+[`database_opener.dart`](../src/mobile/silvae_app/lib/core/database/database_opener.dart)
+sceglie l'implementazione con un import condizionato su `dart.library.js_interop`:
+il plugin nativo su Android e iOS, SQLite compilato in WebAssembly sul web.
+`LocalDatabase.open()` non chiama più le funzioni globali di `sqflite` ma la
+factory che ne esce, e il percorso del file diventa il nome di uno store
+IndexedDB dove un percorso su disco non esiste.
+
+Sul web la factory è `databaseFactoryFfiWebNoWebWorker`, non
+`databaseFactoryFfiWeb` come suggerisce il pacchetto: quella consigliata
+fallisce l'apertura con `unsupported result null`, perché il worker condiviso
+precompilato non risponde alla `openDatabase` di `sqflite_common`. SQLite gira
+quindi sull'isolate principale — trascurabile per il volume di un rapportino, e
+in cambio non c'è un `sqflite_sw.js` generato da tenere allineato. Resta da
+distribuire `web/sqlite3.wasm`, che `scripts/render-build-web.sh` riscarica a
+ogni build.
+
+Il difetto era invisibile alla compilazione: la build web passava senza un
+avviso. Verificato caricando la pagina in un browser, dove il database si apre
+e l'app arriva alla schermata di accesso.
+
+Questo riconcilia anche la tensione con la sezione 12: il web non è più
+rinviato, è il canale con cui si guarda l'app senza installare nulla. Le
+piattaforme di destinazione restano Android e iOS; il desktop resta rinviato.
 
 Prerequisito non previsto originariamente, ora risolto: l'anagrafica è
 scrivibile. Il bootstrap della prima organizzazione (ADR 004), i membri, le
@@ -315,7 +328,7 @@ Questa milestone inizia solo dopo l'uso reale e il feedback sull'MVP.
 - Fatturazione e gestione abbonamenti.
 - Motore di job distribuito.
 - Funzionalità AI successive alla pianificazione.
-- Supporto desktop e web Flutter.
+- Supporto desktop Flutter.
 - Espansione internazionale.
 
 Queste scelte verranno prese sulla base dei requisiti emersi dal pilot, non anticipate nell'MVP.
