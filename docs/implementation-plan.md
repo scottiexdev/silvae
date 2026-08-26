@@ -194,7 +194,7 @@ silvae/
 
 ## 9. Roadmap
 
-### Milestone 0 — Fondazioni
+### Milestone 0 — Fondazioni — completata
 
 - Creare solution .NET e progetti con dipendenze corrette.
 - Creare applicazione Flutter per Android e iOS.
@@ -206,7 +206,7 @@ silvae/
 
 **Completata quando:** backend, test e app Flutter compilano in CI; il client generato chiama un endpoint autenticato di prova.
 
-### Milestone 1 — Primo vertical slice
+### Milestone 1 — Primo vertical slice — completata
 
 - Autenticazione Supabase.
 - Organizzazioni, utenti e ruoli.
@@ -221,6 +221,11 @@ silvae/
 
 ### Milestone 2 — Rapportino MVP
 
+Prerequisito non previsto originariamente: l'anagrafica va resa scrivibile.
+Commesse, cantieri e assegnazioni esistono nel dominio ma nessun endpoint le
+crea, quindi oggi non si può popolare un ambiente né provare l'app dal vivo.
+
+- Anagrafica scrivibile con autorizzazione per ruolo.
 - Membri della squadra e ore lavorate.
 - Attività eseguite e note.
 - Checklist DPI e sicurezza.
