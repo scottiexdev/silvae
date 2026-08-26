@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY Directory.Build.props global.json ./
+# .editorconfig serve alla build: marca le migrazioni EF come codice generato.
+COPY Directory.Build.props global.json .editorconfig ./
 COPY src/backend/Silvae.Domain/Silvae.Domain.csproj src/backend/Silvae.Domain/
 COPY src/backend/Silvae.Application/Silvae.Application.csproj src/backend/Silvae.Application/
 COPY src/backend/Silvae.Infrastructure/Silvae.Infrastructure.csproj src/backend/Silvae.Infrastructure/
