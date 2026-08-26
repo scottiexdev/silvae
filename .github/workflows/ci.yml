@@ -29,6 +29,49 @@ jobs:
       - run: dotnet build Silvae.sln --no-restore --configuration Release
       - run: dotnet test Silvae.sln --no-build --configuration Release
 
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool install --global dotnet-ef
+      - run: dotnet restore Silvae.sln
+
+      # Il modello EF e le migrazioni devono restare allineati: senza questo
+      # controllo una proprietà aggiunta al dominio raggiunge la produzione
+      # senza la colonna corrispondente.
+      - name: The EF model matches the migrations
+        env:
+          ConnectionStrings__Silvae: Host=localhost;Database=silvae;Username=postgres;Password=postgres
+        run: |
+          dotnet ef migrations has-pending-model-changes \
+            --project src/backend/Silvae.Infrastructure \
+            --startup-project src/backend/Silvae.Api
+
+      # Il client Dart è scritto sul contratto: se il contratto cambia senza
+      # che nessuno se ne accorga, il client resta indietro in silenzio.
+      - name: The published OpenAPI document matches docs/openapi.json
+        env:
+          ASPNETCORE_ENVIRONMENT: Testing
+        run: |
+          dotnet run --project src/backend/Silvae.Api \
+            --no-launch-profile --urls http://127.0.0.1:5089 &
+          for _ in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:5089/openapi/v1.json \
+              --output published.json; then
+              break
+            fi
+            sleep 2
+          done
+          test -s published.json
+          python3 -m json.tool --indent 2 published.json published.json
+          if ! diff -u docs/openapi.json published.json; then
+            echo "::error::Il contratto OpenAPI è cambiato. Aggiorna il client Dart e rigenera docs/openapi.json con il workflow tools." >&2
+            exit 1
+          fi
+
   mobile:
     runs-on: ubuntu-latest
     defaults:

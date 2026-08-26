@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+#
+# ATTENZIONE: questo script non è ancora utilizzabile così com'è.
+#
+# Il generatore dart-dio produce un package basato su built_value, con una
+# struttura diversa dal client scritto a mano oggi presente in
+# src/mobile/silvae_api_client. Eseguirlo lo sostituirebbe e romperebbe tutti
+# i punti di chiamata dell'app Flutter.
+#
+# Adottare davvero il client generato è un lavoro a sé, che comporta riscrivere
+# il layer dati Flutter sui DTO built_value e aggiungere build_runner alla
+# catena. Finché non avviene, l'allineamento fra API e client è garantito dal
+# controllo `contract` in CI, che confronta il documento pubblicato con
+# docs/openapi.json.
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -92,6 +92,18 @@ da Development e Testing.
 La procedura completa, con le variabili da inserire nel pannello Render, è in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
+## File derivati
+
+Le migrazioni EF Core e `docs/openapi.json` sono prodotti da strumenti, non
+scritti a mano. Per rigenerarli si avvia a mano il workflow `tools` da GitHub
+Actions, che li rigenera e li committa sul branch da cui è partito. Serve
+quando cambia il modello di dominio o il contratto HTTP.
+
+Due controlli in CI impediscono la deriva: `dotnet ef
+migrations has-pending-model-changes` verifica che il modello e le migrazioni
+coincidano, e il confronto fra il documento pubblicato dall'API e
+`docs/openapi.json` verifica che il contratto non cambi di nascosto.
+
 Rigenerazione del client Dart (richiede Node.js):
 
 ```bash
