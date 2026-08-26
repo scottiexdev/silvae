@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/core/auth/auth_gateway.dart';
 import 'package:silvae_app/core/database/local_database.dart';
+import 'package:silvae_app/core/sync/sync_scheduler.dart';
 import 'package:silvae_app/features/daily_reports/data/daily_report_repository.dart';
 import 'package:silvae_app/features/daily_reports/domain/daily_report.dart';
 import 'package:silvae_app/features/worksites/domain/worksite.dart';
@@ -33,6 +34,12 @@ final reportRepositoryProvider = Provider<DailyReportRepository>(
     ref.watch(organizationIdProvider),
   ),
 );
+
+final syncSchedulerProvider = Provider<SyncScheduler>((ref) {
+  final scheduler = SyncScheduler(ref.watch(reportRepositoryProvider));
+  ref.onDispose(scheduler.dispose);
+  return scheduler;
+});
 
 final worksitesProvider = FutureProvider<List<Worksite>>(
   (ref) => ref.watch(reportRepositoryProvider).getWorksites(refresh: true),

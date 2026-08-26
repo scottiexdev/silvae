@@ -32,6 +32,12 @@ public sealed class Worksite
 
     public string? Address { get; private set; }
 
+    /// <summary>
+    /// Commessa di appartenenza. Resta facoltativa: un cantiere può essere
+    /// censito prima che la commessa sia formalizzata.
+    /// </summary>
+    public Guid? JobOrderId { get; private set; }
+
     public bool IsActive { get; private set; } = true;
 
     public long Version { get; private set; } = 1;
@@ -56,6 +62,19 @@ public sealed class Worksite
     public void SetAddress(string? address)
     {
         Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        Touch();
+    }
+
+    public void AssignToJobOrder(Guid? jobOrderId)
+    {
+        if (jobOrderId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "La commessa non è valida.",
+                nameof(jobOrderId));
+        }
+
+        JobOrderId = jobOrderId;
         Touch();
     }
 

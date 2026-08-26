@@ -32,6 +32,9 @@ final class DailyReportRepository {
                   'code': item.code,
                   'name': item.name,
                   'address': item.address,
+                  'job_order_id': item.jobOrderId,
+                  'job_order_code': item.jobOrderCode,
+                  'job_order_name': item.jobOrderName,
                   'version': item.version,
                   'updated_at': item.updatedAt.toUtc().toIso8601String(),
                 },
@@ -154,6 +157,9 @@ final class DailyReportRepository {
       },
     );
   }
+
+  Future<bool> hasPendingOperations() =>
+      _localDatabase.hasPendingOperations();
 
   Future<void> synchronize() async {
     await _localDatabase.recoverInterruptedOperations();

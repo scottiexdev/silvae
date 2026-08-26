@@ -1,4 +1,5 @@
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
 using Silvae.Domain.Worksites;
 
@@ -13,6 +14,10 @@ public interface ISilvaeStore
     Task<UserMembership?> GetMembershipAsync(
         Guid organizationId,
         Guid userId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<JobOrder>> GetJobOrdersAsync(
+        Guid organizationId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<Worksite>> GetAssignedWorksitesAsync(

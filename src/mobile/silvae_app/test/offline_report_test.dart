@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/core/database/local_database.dart';
+import 'package:silvae_app/core/sync/sync_scheduler.dart';
 import 'package:silvae_app/features/daily_reports/data/daily_report_repository.dart';
 import 'package:silvae_app/features/daily_reports/domain/daily_report.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -64,6 +65,52 @@ Dio _rejectingDio({int? statusCode}) {
             : Response<void>(requestOptions: options, statusCode: statusCode);
         handler.reject(
           DioException(requestOptions: options, response: response),
+        );
+      },
+    ),
+  );
+  return dio;
+}
+
+/// Un Dio che conferma il push riecheggiando le operazioni ricevute e
+/// restituisce un pull vuoto.
+Dio _acceptingDio() {
+  final dio = Dio();
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final now = DateTime.now().toUtc().toIso8601String();
+        if (!options.path.endsWith('/push')) {
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'dailyReports': <dynamic>[], 'serverTime': now},
+            ),
+          );
+          return;
+        }
+        final body = options.data! as Map<String, dynamic>;
+        final sent = (body['operations'] as List<dynamic>)
+            .cast<Map<String, dynamic>>();
+        handler.resolve(
+          Response<Map<String, dynamic>>(
+            requestOptions: options,
+            statusCode: 200,
+            data: {
+              'operations': sent
+                  .map(
+                    (item) => {
+                      'operationId': item['operationId'],
+                      'entityId': item['entityId'],
+                      'version': 1,
+                      'wasDuplicate': false,
+                    },
+                  )
+                  .toList(),
+              'serverTime': now,
+            },
+          ),
         );
       },
     ),
@@ -147,6 +194,48 @@ void main() {
     expect(operations.single['status'], 'failed');
     expect(operations.single['attempts'], 1);
     expect(await LocalDatabase(database).getPendingOperations(), hasLength(1));
+  });
+
+  test('a successful sync empties the queue and stops retrying', () async {
+    final database = await _openTestDatabase();
+    addTearDown(database.close);
+    final repository = _repository(database, dio: _acceptingDio());
+    final scheduler = SyncScheduler(repository);
+    addTearDown(scheduler.dispose);
+
+    await repository.createOffline(
+      worksiteId: _worksiteId,
+      reportDate: DateTime(2026, 7, 25),
+      notes: 'Rientro in copertura',
+    );
+    await scheduler.syncNow();
+
+    expect(await repository.hasPendingOperations(), isFalse);
+    expect(scheduler.pendingRetry, isNull);
+    final reports = await repository.getReports();
+    expect(reports.single.syncStatus, ReportSyncStatus.synced);
+  });
+
+  test('a failed sync arms a growing retry', () async {
+    final database = await _openTestDatabase();
+    addTearDown(database.close);
+    final repository = _repository(database, dio: _rejectingDio());
+    final scheduler = SyncScheduler(
+      repository,
+      firstRetry: const Duration(seconds: 30),
+      maxRetry: const Duration(minutes: 2),
+    );
+    addTearDown(scheduler.dispose);
+
+    await repository.createOffline(
+      worksiteId: _worksiteId,
+      reportDate: DateTime(2026, 7, 25),
+      notes: 'Fuori campo',
+    );
+    await scheduler.syncNow();
+
+    expect(await repository.hasPendingOperations(), isTrue);
+    expect(scheduler.pendingRetry, const Duration(minutes: 1));
   });
 
   test('a version conflict leaves the outbox queue', () async {

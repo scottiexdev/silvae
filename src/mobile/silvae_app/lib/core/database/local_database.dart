@@ -12,11 +12,30 @@ final class LocalDatabase {
     final root = await getDatabasesPath();
     final database = await openDatabase(
       p.join(root, 'silvae.db'),
-      version: 1,
+      version: 2,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _createSchema,
+      onUpgrade: _upgradeSchema,
     );
     return LocalDatabase(database);
+  }
+
+  static Future<void> _upgradeSchema(
+    Database database,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await database.execute(
+        'ALTER TABLE worksites ADD COLUMN job_order_id TEXT',
+      );
+      await database.execute(
+        'ALTER TABLE worksites ADD COLUMN job_order_code TEXT',
+      );
+      await database.execute(
+        'ALTER TABLE worksites ADD COLUMN job_order_name TEXT',
+      );
+    }
   }
 
   static Future<void> _createSchema(Database database, int version) async {
@@ -26,6 +45,9 @@ final class LocalDatabase {
         code TEXT NOT NULL,
         name TEXT NOT NULL,
         address TEXT,
+        job_order_id TEXT,
+        job_order_code TEXT,
+        job_order_name TEXT,
         version INTEGER NOT NULL,
         updated_at TEXT NOT NULL
       )
@@ -158,6 +180,19 @@ final class LocalDatabase {
     where: 'status = ?',
     whereArgs: ['processing'],
   );
+
+  /// Include `processing` perché un'operazione interrotta va comunque
+  /// riportata in coda dal ciclo successivo.
+  Future<bool> hasPendingOperations() async {
+    final rows = await database.query(
+      'outbox',
+      columns: ['operation_id'],
+      where: 'status IN (?, ?, ?)',
+      whereArgs: ['pending', 'failed', 'processing'],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
 
   Future<List<Map<String, Object?>>> getPendingOperations() => database.query(
     'outbox',

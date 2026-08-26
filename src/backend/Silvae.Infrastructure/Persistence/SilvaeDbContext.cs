@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
 using Silvae.Domain.Worksites;
 
@@ -11,6 +12,8 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
     public DbSet<Organization> Organizations => Set<Organization>();
 
     public DbSet<UserMembership> UserMemberships => Set<UserMembership>();
+
+    public DbSet<JobOrder> JobOrders => Set<JobOrder>();
 
     public DbSet<Worksite> Worksites => Set<Worksite>();
 
@@ -43,6 +46,20 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<JobOrder>(entity =>
+        {
+            entity.ToTable("job_orders");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Code).HasMaxLength(64);
+            entity.Property(item => item.Name).HasMaxLength(200);
+            entity.Property(item => item.Customer).HasMaxLength(200);
+            entity.HasIndex(item => new { item.OrganizationId, item.Code }).IsUnique();
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Worksite>(entity =>
         {
             entity.ToTable("worksites");
@@ -51,10 +68,15 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
             entity.Property(item => item.Name).HasMaxLength(200);
             entity.Property(item => item.Address).HasMaxLength(500);
             entity.HasIndex(item => new { item.OrganizationId, item.Code }).IsUnique();
+            entity.HasIndex(item => item.JobOrderId);
             entity.HasOne<Organization>()
                 .WithMany()
                 .HasForeignKey(item => item.OrganizationId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<JobOrder>()
+                .WithMany()
+                .HasForeignKey(item => item.JobOrderId)
+                .OnDelete(DeleteBehavior.SetNull);
             entity.HasMany(item => item.Assignments)
                 .WithOne()
                 .HasForeignKey(item => item.WorksiteId)

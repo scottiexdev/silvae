@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Silvae.Application.Abstractions;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
 using Silvae.Domain.Worksites;
 
@@ -27,6 +28,17 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             item => item.OrganizationId == organizationId &&
                 item.UserId == userId,
             cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<JobOrder>> GetJobOrdersAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.JobOrders
+            .AsNoTracking()
+            .Where(item => item.OrganizationId == organizationId)
+            .OrderBy(item => item.Code)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Worksite>> GetAssignedWorksitesAsync(

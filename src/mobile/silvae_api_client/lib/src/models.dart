@@ -6,6 +6,9 @@ final class WorksiteDto {
     required this.version,
     required this.updatedAt,
     this.address,
+    this.jobOrderId,
+    this.jobOrderCode,
+    this.jobOrderName,
   });
 
   factory WorksiteDto.fromJson(Map<String, dynamic> json) => WorksiteDto(
@@ -13,6 +16,9 @@ final class WorksiteDto {
     code: json['code'] as String,
     name: json['name'] as String,
     address: json['address'] as String?,
+    jobOrderId: json['jobOrderId'] as String?,
+    jobOrderCode: json['jobOrderCode'] as String?,
+    jobOrderName: json['jobOrderName'] as String?,
     version: json['version'] as int,
     updatedAt: DateTime.parse(json['updatedAt'] as String),
   );
@@ -21,6 +27,9 @@ final class WorksiteDto {
   final String code;
   final String name;
   final String? address;
+  final String? jobOrderId;
+  final String? jobOrderCode;
+  final String? jobOrderName;
   final int version;
   final DateTime updatedAt;
 }

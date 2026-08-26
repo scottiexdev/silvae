@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_app/app/dependencies.dart';
@@ -11,12 +13,38 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage>
+    with WidgetsBindingObserver {
   bool _syncing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Un tentativo all'apertura: se la rete è tornata mentre l'app era
+    // chiusa, la coda si svuota senza che l'operatore debba accorgersene.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _synchronize());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_synchronize());
+    }
+  }
+
   Future<void> _synchronize() async {
+    if (_syncing) {
+      return;
+    }
     setState(() => _syncing = true);
-    await ref.read(reportRepositoryProvider).synchronize();
+    await ref.read(syncSchedulerProvider).syncNow();
     ref.invalidate(worksitesProvider);
     ref.invalidate(dailyReportsProvider);
     if (mounted) {
@@ -48,6 +76,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           notes: result.notes,
         );
     ref.invalidate(dailyReportsProvider);
+    unawaited(_synchronize());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Rapportino salvato sul dispositivo.')),
@@ -79,6 +108,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           notes: result.notes,
         );
     ref.invalidate(dailyReportsProvider);
+    unawaited(_synchronize());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Modifica salvata sul dispositivo.')),
@@ -214,6 +244,7 @@ class _ReportCard extends StatelessWidget {
       child: ListTile(
         title: Text(worksite?.name ?? 'Cantiere'),
         subtitle: Text(
+          '${worksite?.jobOrderName ?? 'Commessa non assegnata'}\n'
           '${report.reportDate.day.toString().padLeft(2, '0')}/'
           '${report.reportDate.month.toString().padLeft(2, '0')}/'
           '${report.reportDate.year}\n$label',
@@ -295,7 +326,7 @@ class _ReportDialogState extends State<_ReportDialog> {
                 .map(
                   (item) => DropdownMenuItem(
                     value: item.id,
-                    child: Text('${item.code} · ${item.name}'),
+                    child: Text(item.label),
                   ),
                 )
                 .toList(growable: false),

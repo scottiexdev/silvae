@@ -5,6 +5,7 @@ using Silvae.Application.Common;
 using Silvae.Application.Identity;
 using Silvae.Application.Sync;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
 using Silvae.Domain.Worksites;
 
@@ -134,6 +135,8 @@ public sealed class SyncServiceTests
 
         public List<Worksite> Worksites { get; } = [];
 
+        public List<JobOrder> JobOrders { get; } = [];
+
         public List<DailyReport> Reports { get; } = [];
 
         public List<ProcessedSyncOperation> ProcessedOperations { get; } = [];
@@ -153,6 +156,15 @@ public sealed class SyncServiceTests
         {
             return Task.FromResult(Memberships.SingleOrDefault(item =>
                 item.OrganizationId == organizationId && item.UserId == userId));
+        }
+
+        public Task<IReadOnlyList<JobOrder>> GetJobOrdersAsync(
+            Guid organizationId,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<JobOrder>>(
+                JobOrders.Where(item => item.OrganizationId == organizationId)
+                    .ToArray());
         }
 
         public Task<IReadOnlyList<Worksite>> GetAssignedWorksitesAsync(
