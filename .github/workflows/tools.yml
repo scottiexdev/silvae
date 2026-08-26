@@ -8,6 +8,8 @@ on:
 jobs:
   regenerate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       # dotnet ef non si collega al database per generare una migrazione: la
       # stringa serve solo a far scegliere il provider Npgsql.
@@ -50,11 +52,19 @@ jobs:
           test -s docs/openapi.json
           python3 -m json.tool --indent 2 docs/openapi.json docs/openapi.json
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: regenerated
-          path: |
-            src/backend/Silvae.Infrastructure/Persistence/Migrations/
+      - name: Commit the regenerated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/backend/Silvae.Infrastructure/Persistence/Migrations \
             docs/openapi.json
-          if-no-files-found: error
+          if git diff --cached --quiet; then
+            echo "Nessuna differenza: i file derivati sono già aggiornati."
+            exit 0
+          fi
+          git commit -m "Rigenera migrazioni EF e documento OpenAPI
+
+          Prodotti da dotnet ef e dall'API in esecuzione, non scritti a mano.
+          Avviato da .github/workflows/tools.yml."
+          git push origin HEAD:${GITHUB_REF_NAME}
