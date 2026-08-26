@@ -45,32 +45,6 @@ flutter run \
 In assenza dei quattro valori l'app mostra una pagina di configurazione e non
 prova ad aprire sessioni o database remoti.
 
-## Prima prova interattiva
-
-L'API non espone ancora endpoint di scrittura per organizzazioni, commesse e
-cantieri: su un database vuoto `GET /api/me` risponde 403 e la schermata dei
-rapportini resta inutilizzabile. In Development l'avvio inserisce quindi i dati
-minimi, purché sia valorizzata `SILVAE_SEED_USER_ID` con l'id dell'utente
-Supabase, cioè il claim `sub` del suo token.
-
-1. Creare un progetto Supabase e, in **Authentication → Users**, un utente con
-   email e password.
-2. Copiarne l'id e avviare l'API con `SILVAE_SEED_USER_ID` valorizzata.
-3. Avviare il client passando `SILVAE_ORGANIZATION_ID` con l'organizzazione di
-   prova, che ha sempre lo stesso id:
-
-```text
-5117ae00-0000-4000-8000-000000000001
-```
-
-L'app mostrerà due cantieri sotto la commessa `C-2026-001`, sui quali si può
-creare un rapportino, modificarlo e sincronizzarlo.
-
-Il seed non fa nulla se l'organizzazione di prova esiste già, quindi riavviare
-l'API non duplica niente e non sovrascrive quanto fatto nella prova precedente.
-Fuori da Development non viene mai eseguito: creare da sé una membership da
-amministratore significherebbe fabbricare un accesso.
-
 ## Verifica
 
 ```bash

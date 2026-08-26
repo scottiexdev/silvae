@@ -75,7 +75,7 @@
       "id": "organizationId",
       "type": "promptString",
       "description": "Organization UUID",
-      "default": "5117ae00-0000-4000-8000-000000000001"
+      "default": "00000000-0000-0000-0000-000000000000"
     }
   ]
 }
