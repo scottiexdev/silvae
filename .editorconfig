@@ -1,0 +1,9 @@
+root = true
+
+# Le migrazioni EF Core sono prodotte da `dotnet ef`, non scritte a mano.
+# Marcarle come codice generato evita che gli analizzatori applichino a un
+# file rigenerabile le regole pensate per il codice che manteniamo noi: senza
+# questo, con TreatWarningsAsErrors una migrazione appena generata non
+# compila.
+[**/Persistence/Migrations/*.cs]
+generated_code = true
