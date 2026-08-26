@@ -239,13 +239,25 @@ silvae/
 - Correzione o riapertura controllata.
 - Export PDF e formato tabellare concordato con la cooperativa.
 - Archivio documenti e autorizzazioni del cantiere.
+- Competenze e certificazioni per persona: patentino motosega, abilitazione
+  trattore, corso DPI e sicurezza, con ente rilasciante, data di rilascio,
+  scadenza e attestato allegato.
+- Avvisi sulle certificazioni in scadenza ed estrazione per ispezione.
 
-**Completata quando:** l'ufficio può produrre la rendicontazione richiesta partendo esclusivamente dai dati di Silvae.
+La validità di una certificazione va conservata come intervallo, non come stato
+corrente. Un'ispezione su lavori di otto mesi fa chiede se l'operatore era
+abilitato in quella data, non se lo è oggi: uno schema che tiene soltanto
+`scadenza` risponde alla domanda sbagliata e va corretto quando i dati storici
+esistono già.
+
+**Completata quando:** l'ufficio può produrre la rendicontazione richiesta partendo esclusivamente dai dati di Silvae e, davanti a un ente finanziatore o a un RSPP, mostrare le certificazioni valide degli operatori presenti in cantiere alle date dichiarate.
 
 ### Milestone 4 — Pianificazione e comunicazione
 
 - Calendario e mappa dei cantieri.
-- Assegnazione delle squadre.
+- Competenze richieste dal cantiere.
+- Assegnazione delle squadre, con verifica delle competenze e blocco esplicito
+  quando un operatore non è abilitato alla lavorazione prevista.
 - Disponibilità, ferie e orari.
 - Notifiche push.
 - Comandi testuali o vocali interpretati dall'AI, con conferma umana prima dell'invio.
