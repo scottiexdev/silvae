@@ -1,7 +1,9 @@
 using Silvae.Application.Abstractions;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.Documents;
 using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
+using Silvae.Domain.People;
 using Silvae.Domain.Worksites;
 
 namespace Silvae.Application.Tests;
@@ -24,6 +26,10 @@ internal sealed class InMemorySilvaeStore : ISilvaeStore
     public List<DailyReport> Reports { get; } = [];
 
     public List<ProcessedSyncOperation> ProcessedOperations { get; } = [];
+
+    public List<Certification> Certifications { get; } = [];
+
+    public List<StoredDocument> Documents { get; } = [];
 
     public int SaveCount { get; private set; }
 
@@ -160,6 +166,81 @@ internal sealed class InMemorySilvaeStore : ISilvaeStore
                 (changedSince is null || item.UpdatedAt > changedSince)).ToArray());
     }
 
+    public Task<IReadOnlyList<DailyReport>> SearchDailyReportsAsync(
+        Guid organizationId,
+        Guid userId,
+        bool includeAll,
+        DailyReportFilter filter,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<DailyReport>>(
+            Reports.Where(item =>
+                item.OrganizationId == organizationId &&
+                (includeAll || item.AuthorId == userId) &&
+                (filter.WorksiteId is null || item.WorksiteId == filter.WorksiteId) &&
+                (filter.JobOrderId is null || Worksites.Any(worksite =>
+                    worksite.Id == item.WorksiteId &&
+                    worksite.JobOrderId == filter.JobOrderId)) &&
+                (filter.CrewUserId is null || item.Crew.Any(member =>
+                    member.UserId == filter.CrewUserId)) &&
+                (filter.From is null || item.ReportDate >= filter.From) &&
+                (filter.To is null || item.ReportDate <= filter.To) &&
+                (filter.Status is null || item.Status == filter.Status))
+                .ToArray());
+    }
+
+    public Task<IReadOnlyList<Certification>> GetCertificationsAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<Certification>>(
+            Certifications
+                .Where(item => item.OrganizationId == organizationId)
+                .ToArray());
+    }
+
+    public Task<Certification?> GetCertificationAsync(
+        Guid organizationId,
+        Guid certificationId,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Certifications.SingleOrDefault(item =>
+            item.OrganizationId == organizationId && item.Id == certificationId));
+    }
+
+    public Task<IReadOnlyList<StoredDocumentSummary>> GetDocumentSummariesAsync(
+        Guid organizationId,
+        Guid? worksiteId,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<StoredDocumentSummary>>(
+            Documents
+                .Where(item => item.OrganizationId == organizationId &&
+                    (worksiteId is null || item.WorksiteId == worksiteId))
+                .Select(item => new StoredDocumentSummary(
+                    item.Id,
+                    item.WorksiteId,
+                    item.Title,
+                    item.Category,
+                    item.IssuedOn,
+                    item.ExpiresOn,
+                    item.FileName,
+                    item.ContentType,
+                    item.SizeBytes,
+                    item.UploadedBy,
+                    item.UploadedAt))
+                .ToArray());
+    }
+
+    public Task<StoredDocument?> GetDocumentAsync(
+        Guid organizationId,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(Documents.SingleOrDefault(item =>
+            item.OrganizationId == organizationId && item.Id == documentId));
+    }
+
     public Task<ProcessedSyncOperation?> GetProcessedOperationAsync(
         Guid organizationId,
         Guid operationId,
@@ -201,6 +282,16 @@ internal sealed class InMemorySilvaeStore : ISilvaeStore
 
     public void AddProcessedOperation(ProcessedSyncOperation operation) =>
         ProcessedOperations.Add(operation);
+
+    public void AddCertification(Certification certification) =>
+        Certifications.Add(certification);
+
+    public void RemoveCertification(Certification certification) =>
+        Certifications.Remove(certification);
+
+    public void AddDocument(StoredDocument document) => Documents.Add(document);
+
+    public void RemoveDocument(StoredDocument document) => Documents.Remove(document);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)
     {

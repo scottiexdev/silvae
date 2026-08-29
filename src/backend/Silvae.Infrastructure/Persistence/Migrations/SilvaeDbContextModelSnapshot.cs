@@ -43,6 +43,16 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("ReportDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("Signature")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("SignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SignedBy")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -151,6 +161,39 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.ToTable("daily_report_crew", (string)null);
                 });
 
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportPhoto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DailyReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("LocalReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DailyReportId");
+
+                    b.ToTable("daily_report_photos", (string)null);
+                });
+
             modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportSafetyCheck", b =>
                 {
                     b.Property<Guid>("Id")
@@ -176,6 +219,62 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.HasIndex("DailyReportId");
 
                     b.ToTable("daily_report_safety_checks", (string)null);
+                });
+
+            modelBuilder.Entity("Silvae.Domain.Documents.StoredDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<DateOnly?>("IssuedOn")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WorksiteId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorksiteId");
+
+                    b.HasIndex("OrganizationId", "WorksiteId");
+
+                    b.ToTable("documents", (string)null);
                 });
 
             modelBuilder.Entity("Silvae.Domain.JobOrders.JobOrder", b =>
@@ -253,6 +352,53 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.HasKey("OrganizationId", "UserId");
 
                     b.ToTable("user_memberships", (string)null);
+                });
+
+            modelBuilder.Entity("Silvae.Domain.People.Certification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Issuer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("ExpiresOn");
+
+                    b.HasIndex("OrganizationId", "UserId");
+
+                    b.ToTable("certifications", (string)null);
                 });
 
             modelBuilder.Entity("Silvae.Domain.Worksites.Worksite", b =>
@@ -380,6 +526,15 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportPhoto", b =>
+                {
+                    b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
+                        .WithMany("Photos")
+                        .HasForeignKey("DailyReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Silvae.Domain.DailyReports.DailyReportSafetyCheck", b =>
                 {
                     b.HasOne("Silvae.Domain.DailyReports.DailyReport", null)
@@ -387,6 +542,20 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                         .HasForeignKey("DailyReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.Documents.StoredDocument", b =>
+                {
+                    b.HasOne("Silvae.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Silvae.Domain.Worksites.Worksite", null)
+                        .WithMany()
+                        .HasForeignKey("WorksiteId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("Silvae.Domain.JobOrders.JobOrder", b =>
@@ -400,6 +569,20 @@ namespace Silvae.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Silvae.Domain.Organizations.UserMembership", b =>
                 {
+                    b.HasOne("Silvae.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Silvae.Domain.People.Certification", b =>
+                {
+                    b.HasOne("Silvae.Domain.Documents.StoredDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Silvae.Domain.Organizations.Organization", null)
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -446,6 +629,8 @@ namespace Silvae.Infrastructure.Persistence.Migrations
                     b.Navigation("Audit");
 
                     b.Navigation("Crew");
+
+                    b.Navigation("Photos");
 
                     b.Navigation("SafetyChecks");
                 });

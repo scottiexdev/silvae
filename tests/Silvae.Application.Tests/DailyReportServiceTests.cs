@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Silvae.Application.Abstractions;
 using Silvae.Application.Common;
 using Silvae.Application.DailyReports;
 using Silvae.Application.Identity;
@@ -17,12 +18,14 @@ public sealed class DailyReportServiceTests
 
     private static readonly SafetyCheckEntry[] NoSafetyChecks = [];
 
+    private static readonly PhotoEntry[] NoPhotos = [];
+
     [Fact]
     public async Task TheOfficeApprovesAReportSentFromTheField()
     {
         var fixture = new Fixture(OrganizationRole.Coordinator);
         var report = fixture.AddReport();
-        report.Submit(Fixture.WorkerId, Now);
+        report.Submit(Fixture.WorkerId, "Mario Rossi", Now);
 
         var approved = await fixture.Service.ApproveAsync(
             report.Id,
@@ -38,7 +41,7 @@ public sealed class DailyReportServiceTests
     {
         var fixture = new Fixture(OrganizationRole.Worker);
         var report = fixture.AddReport(authorId: Fixture.CallerId);
-        report.Submit(Fixture.CallerId, Now);
+        report.Submit(Fixture.CallerId, "Chi chiama", Now);
 
         var action = () => fixture.Service.ApproveAsync(
             report.Id,
@@ -65,7 +68,7 @@ public sealed class DailyReportServiceTests
     {
         var fixture = new Fixture(OrganizationRole.Coordinator);
         var report = fixture.AddReport();
-        report.Submit(Fixture.WorkerId, Now);
+        report.Submit(Fixture.WorkerId, "Mario Rossi", Now);
         await fixture.Service.ApproveAsync(report.Id, CancellationToken.None);
 
         var reopened = await fixture.Service.ReopenAsync(
@@ -84,10 +87,77 @@ public sealed class DailyReportServiceTests
 
         var submitted = await fixture.Service.SubmitAsync(
             report.Id,
+            "Luca Bianchi",
             CancellationToken.None);
 
         submitted.Status.Should().Be(nameof(DailyReportStatus.Submitted));
         submitted.TotalHours.Should().Be(8m);
+        submitted.Signature.Should().Be("Luca Bianchi");
+        submitted.SignedBy.Should().Be(Fixture.CallerId);
+    }
+
+    [Fact]
+    public async Task AReportWithoutTheCrewLeaderConfirmationIsNotSent()
+    {
+        var fixture = new Fixture(OrganizationRole.Worker);
+        var report = fixture.AddReport(authorId: Fixture.CallerId);
+
+        var action = () => fixture.Service.SubmitAsync(
+            report.Id,
+            "   ",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<ArgumentException>();
+        report.Status.Should().Be(DailyReportStatus.Draft);
+    }
+
+    [Fact]
+    public async Task ReopeningClearsTheConfirmationSoItIsGivenAgain()
+    {
+        var fixture = new Fixture(OrganizationRole.Coordinator);
+        var report = fixture.AddReport();
+        report.Submit(Fixture.WorkerId, "Mario Rossi", Now);
+
+        var reopened = await fixture.Service.ReopenAsync(
+            report.Id,
+            CancellationToken.None);
+
+        reopened.Signature.Should().BeNull();
+        reopened.SignedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task TheOfficeFiltersTheReportsByWorksiteAndDate()
+    {
+        var fixture = new Fixture(OrganizationRole.Coordinator);
+        fixture.AddReport();
+        fixture.AddReport(worksiteId: Guid.NewGuid());
+
+        var found = await fixture.Service.SearchAsync(
+            new DailyReportFilter(
+                WorksiteId: Fixture.WorksiteId,
+                From: new DateOnly(2026, 7, 1),
+                To: new DateOnly(2026, 7, 31)),
+            CancellationToken.None);
+
+        found.Should().ContainSingle()
+            .Which.WorksiteCode.Should().Be("W-001");
+    }
+
+    [Fact]
+    public async Task TheExportHasOneRowPerPersonAndDay()
+    {
+        var fixture = new Fixture(OrganizationRole.Coordinator);
+        fixture.AddReport();
+
+        var rows = await fixture.Service.ExportAsync(
+            new DailyReportFilter(),
+            CancellationToken.None);
+
+        rows.Should().ContainSingle();
+        rows[0].DisplayName.Should().Be("Mario Rossi");
+        rows[0].Hours.Should().Be(8m);
+        rows[0].WorksiteCode.Should().Be("W-001");
     }
 
     [Fact]
@@ -183,7 +253,8 @@ public sealed class DailyReportServiceTests
                     "Giornata regolare",
                     [new CrewEntry(WorkerId, 8m, null)],
                     NoActivities,
-                    NoSafetyChecks),
+                    NoSafetyChecks,
+                    NoPhotos),
                 Now);
             Store.Reports.Add(report);
             return report;

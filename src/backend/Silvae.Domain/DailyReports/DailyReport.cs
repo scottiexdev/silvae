@@ -13,6 +13,7 @@ public sealed class DailyReport
     private readonly List<DailyReportCrewMember> _crew = [];
     private readonly List<DailyReportActivity> _activities = [];
     private readonly List<DailyReportSafetyCheck> _safetyChecks = [];
+    private readonly List<DailyReportPhoto> _photos = [];
     private readonly List<DailyReportAuditEntry> _audit = [];
 
     private DailyReport()
@@ -78,8 +79,22 @@ public sealed class DailyReport
 
     public IReadOnlyList<DailyReportSafetyCheck> SafetyChecks => _safetyChecks;
 
+    public IReadOnlyList<DailyReportPhoto> Photos => _photos;
+
     /// <summary>
-    /// Traccia in sola aggiunta di chi ha fatto cosa. Un rapportino approvato
+    /// Conferma del caposquadra al momento dell'invio: il nome che ha
+    /// dichiarato e l'istante in cui l'ha fatto. Sostituisce la firma sul
+    /// foglio cartaceo, che dice chi si assume la responsabilità delle ore
+    /// scritte sopra.
+    /// </summary>
+    public string? Signature { get; private set; }
+
+    public Guid? SignedBy { get; private set; }
+
+    public DateTimeOffset? SignedAt { get; private set; }
+
+    /// <summary>
+    /// Traccia in sola aggiunta di chi ha fatto cosa. Un report approvato
     /// e poi riaperto deve poter raccontare il proprio percorso: davanti a un
     /// controllo la domanda non è com'è adesso, ma come ci è arrivato.
     /// </summary>
@@ -96,7 +111,7 @@ public sealed class DailyReport
     }
 
     /// <summary>
-    /// Sostituisce l'intero contenuto del rapportino. Il rapportino è un
+    /// Sostituisce l'intero contenuto del report. Il report è un
     /// documento e il dispositivo ne possiede la versione offline: una fusione
     /// parziale lato server contraddirebbe la outbox, che accorpa le modifiche
     /// successive in un'unica operazione.
@@ -111,7 +126,7 @@ public sealed class DailyReport
         if (Status is not (DailyReportStatus.Draft or DailyReportStatus.Reopened))
         {
             throw new InvalidOperationException(
-                "Solo un rapportino in bozza o riaperto può essere modificato.");
+                "Solo un report in bozza o riaperto può essere modificato.");
         }
 
         if (content.WorksiteId == Guid.Empty)
@@ -131,22 +146,35 @@ public sealed class DailyReport
         Record(DailyReportAction.Updated, actorId, now);
     }
 
-    public void Submit(Guid actorId, DateTimeOffset now)
+    /// <summary>
+    /// Invia il report. La conferma del caposquadra è obbligatoria: il foglio
+    /// cartaceo che questo sostituisce non lasciava il cantiere senza una firma
+    /// in fondo.
+    /// </summary>
+    public void Submit(Guid actorId, string signature, DateTimeOffset now)
     {
         if (Status is not (DailyReportStatus.Draft or DailyReportStatus.Reopened))
         {
-            throw new InvalidOperationException("Il rapportino non può essere inviato.");
+            throw new InvalidOperationException("Il report non può essere inviato.");
         }
 
-        // Un rapportino senza nessuno in squadra non rendiconta niente: è la
+        // Un report senza nessuno in squadra non rendiconta niente: è la
         // riga che l'ufficio userà per le ore, e mancherebbe.
         if (_crew.Count == 0)
         {
             throw new InvalidOperationException(
-                "Un rapportino senza squadra non può essere inviato.");
+                "Un report senza squadra non può essere inviato.");
         }
 
+        var confirmation = ShortText.Normalize(signature, 200, nameof(signature))
+            ?? throw new ArgumentException(
+                "La conferma del caposquadra è obbligatoria.",
+                nameof(signature));
+
         Status = DailyReportStatus.Submitted;
+        Signature = confirmation;
+        SignedBy = actorId;
+        SignedAt = now;
         Touch(now);
         Record(DailyReportAction.Submitted, actorId, now);
     }
@@ -156,7 +184,7 @@ public sealed class DailyReport
         if (Status != DailyReportStatus.Submitted)
         {
             throw new InvalidOperationException(
-                "Solo un rapportino inviato può essere approvato.");
+                "Solo un report inviato può essere approvato.");
         }
 
         Status = DailyReportStatus.Approved;
@@ -169,9 +197,14 @@ public sealed class DailyReport
         if (Status is not (DailyReportStatus.Submitted or DailyReportStatus.Approved))
         {
             throw new InvalidOperationException(
-                "Solo un rapportino inviato o approvato può essere riaperto.");
+                "Solo un report inviato o approvato può essere riaperto.");
         }
 
+        // La conferma copriva il contenuto di allora. Riaprire significa
+        // poterlo cambiare, quindi la firma va rifatta sul contenuto nuovo.
+        Signature = null;
+        SignedBy = null;
+        SignedAt = null;
         Status = DailyReportStatus.Reopened;
         Touch(now);
         Record(DailyReportAction.Reopened, actorId, now);
@@ -190,7 +223,7 @@ public sealed class DailyReport
         {
             throw new ArgumentOutOfRangeException(
                 nameof(reportDate),
-                "La data del rapportino non può essere nel futuro.");
+                "La data del report non può essere nel futuro.");
         }
     }
 
@@ -246,6 +279,18 @@ public sealed class DailyReport
 
             _safetyChecks.Add(check);
         }
+
+        _photos.Clear();
+        foreach (var entry in content.Photos)
+        {
+            _photos.Add(new DailyReportPhoto(
+                Id,
+                entry.LocalReference,
+                entry.Latitude,
+                entry.Longitude,
+                entry.CapturedAt,
+                entry.Caption));
+        }
     }
 
     private void Record(DailyReportAction action, Guid actorId, DateTimeOffset now)
@@ -278,13 +323,21 @@ public sealed record DailyReportContent(
     string? Notes,
     IReadOnlyList<CrewEntry> Crew,
     IReadOnlyList<ActivityEntry> Activities,
-    IReadOnlyList<SafetyCheckEntry> SafetyChecks);
+    IReadOnlyList<SafetyCheckEntry> SafetyChecks,
+    IReadOnlyList<PhotoEntry> Photos);
 
 public sealed record CrewEntry(Guid UserId, decimal Hours, string? Note);
 
 public sealed record ActivityEntry(string Description, decimal? Quantity, string? Unit);
 
 public sealed record SafetyCheckEntry(string Code, bool IsCompliant, string? Note);
+
+public sealed record PhotoEntry(
+    string LocalReference,
+    double? Latitude,
+    double? Longitude,
+    DateTimeOffset CapturedAt,
+    string? Caption);
 
 public sealed class DailyReportCrewMember
 {
@@ -384,7 +437,7 @@ public sealed class DailyReportSafetyCheck
         var normalizedNote = ShortText.Normalize(note, 500, nameof(note));
 
         // Una non conformità senza spiegazione non è una registrazione, è un
-        // buco: chi legge il rapportino a mesi di distanza deve sapere cosa
+        // buco: chi legge il report a mesi di distanza deve sapere cosa
         // mancava e perché si è lavorato lo stesso.
         if (!isCompliant && normalizedNote is null)
         {
@@ -409,6 +462,77 @@ public sealed class DailyReportSafetyCheck
     public bool IsCompliant { get; private set; }
 
     public string? Note { get; private set; }
+}
+
+/// <summary>
+/// Una foto scattata in cantiere. Il server ne registra solo la scheda:
+/// riferimento sul dispositivo, posizione e istante dello scatto.
+/// </summary>
+// ponytail: i byte restano sul dispositivo come previsto dal piano (§6). Il
+// caricamento su Supabase Storage con URL firmati arriva quando serve vedere
+// la foto dall'ufficio.
+public sealed class DailyReportPhoto
+{
+    private DailyReportPhoto()
+    {
+    }
+
+    public DailyReportPhoto(
+        Guid dailyReportId,
+        string localReference,
+        double? latitude,
+        double? longitude,
+        DateTimeOffset capturedAt,
+        string? caption)
+    {
+        // Sotto una chioma fitta il GPS non aggancia: una foto senza posizione
+        // resta una foto, mentre una posizione a metà non significa niente.
+        if (latitude is null != longitude is null)
+        {
+            throw new ArgumentException(
+                "Latitudine e longitudine vanno insieme.",
+                nameof(latitude));
+        }
+
+        if (latitude is < -90d or > 90d)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(latitude),
+                "La latitudine deve stare fra -90 e 90.");
+        }
+
+        if (longitude is < -180d or > 180d)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(longitude),
+                "La longitudine deve stare fra -180 e 180.");
+        }
+
+        Id = Guid.CreateVersion7();
+        DailyReportId = dailyReportId;
+        LocalReference = ShortText.Require(localReference, 200, nameof(localReference));
+        Latitude = latitude;
+        Longitude = longitude;
+        CapturedAt = capturedAt;
+        Caption = ShortText.Normalize(caption, 500, nameof(caption));
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid DailyReportId { get; private set; }
+
+    /// <summary>
+    /// Come il dispositivo ritrova il file che ha scattato.
+    /// </summary>
+    public string LocalReference { get; private set; } = string.Empty;
+
+    public double? Latitude { get; private set; }
+
+    public double? Longitude { get; private set; }
+
+    public DateTimeOffset CapturedAt { get; private set; }
+
+    public string? Caption { get; private set; }
 }
 
 public sealed class DailyReportAuditEntry

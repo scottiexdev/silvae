@@ -16,6 +16,12 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>Silvae</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Silvae usa la fotocamera per allegare le foto al report di cantiere.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Silvae legge le foto già scattate per allegarle al report di cantiere.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Silvae registra dove è stata scattata la foto del cantiere. Senza posizione la foto resta valida.</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

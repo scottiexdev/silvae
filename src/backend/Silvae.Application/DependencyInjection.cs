@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Silvae.Application.DailyReports;
+using Silvae.Application.Documents;
 using Silvae.Application.Identity;
 using Silvae.Application.JobOrders;
 using Silvae.Application.Organizations;
+using Silvae.Application.People;
 using Silvae.Application.Sync;
 using Silvae.Application.Worksites;
 
@@ -20,6 +22,8 @@ public static class DependencyInjection
         services.AddScoped<JobOrderService>();
         services.AddScoped<WorksiteService>();
         services.AddScoped<DailyReportService>();
+        services.AddScoped<CertificationService>();
+        services.AddScoped<DocumentService>();
         services.AddScoped<SyncService>();
         return services;
     }

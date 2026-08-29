@@ -61,7 +61,7 @@ public sealed class Worksite
     }
 
     /// <summary>
-    /// Toglie l'operatore dal cantiere. Non cancella i rapportini che ha già
+    /// Toglie l'operatore dal cantiere. Non cancella i report che ha già
     /// compilato: l'assegnazione dice chi ci lavora oggi, non chi ci ha
     /// lavorato.
     /// </summary>

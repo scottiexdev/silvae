@@ -74,6 +74,7 @@ public sealed class SyncService(
             report.ReportDate,
             report.Notes,
             report.Status.ToString(),
+            report.Signature,
             report.Version,
             report.UpdatedAt,
             report.Crew
@@ -93,6 +94,14 @@ public sealed class SyncService(
                     check.Code,
                     check.IsCompliant,
                     check.Note))
+                .ToArray(),
+            report.Photos
+                .Select(photo => new PhotoPayload(
+                    photo.LocalReference,
+                    photo.Latitude,
+                    photo.Longitude,
+                    photo.CapturedAt,
+                    photo.Caption))
                 .ToArray());
     }
 
@@ -115,7 +124,7 @@ public sealed class SyncService(
         if (!IsOperation(operation.EntityType, "dailyReport"))
         {
             throw new SyncValidationException(
-                "Questa versione sincronizza soltanto i rapportini.");
+                "Questa versione sincronizza soltanto i report.");
         }
 
         var processedOperation = await store.GetProcessedOperationAsync(
@@ -181,7 +190,7 @@ public sealed class SyncService(
         catch (JsonException)
         {
             throw new SyncValidationException(
-                "Il payload del rapportino non è valido.");
+                "Il payload del report non è valido.");
         }
 
         var includeAll = DailyReportAuthorization.IsOfficeRole(membership);
@@ -248,18 +257,30 @@ public sealed class SyncService(
                 operation.EntityId,
                 cancellationToken)
             ?? throw new SyncValidationException(
-                "Il rapportino da inviare non esiste sul server.");
+                "Il report da inviare non esiste sul server.");
 
         if (report.Version != operation.ExpectedVersion)
         {
             throw new SyncConflictException(report.Version);
         }
 
+        SubmitPayload submitPayload;
+        try
+        {
+            submitPayload = operation.Payload.Deserialize<SubmitPayload>(SerializerOptions)
+                ?? throw new JsonException();
+        }
+        catch (JsonException)
+        {
+            throw new SyncValidationException(
+                "L'invio richiede la conferma del caposquadra.");
+        }
+
         DailyReportAuthorization.RequireCanEdit(
             report,
             membership,
             requestContext.UserId);
-        report.Submit(requestContext.UserId, now);
+        report.Submit(requestContext.UserId, submitPayload.Signature, now);
 
         return report;
     }
@@ -267,7 +288,7 @@ public sealed class SyncService(
     /// <summary>
     /// Traduce il payload in contenuto di dominio. Una lista assente lascia
     /// intatta quella già registrata: un dispositivo che conosce solo una parte
-    /// del rapportino non deve cancellare il resto sincronizzando.
+    /// del report non deve cancellare il resto sincronizzando.
     /// </summary>
     private async Task<DailyReportContent> BuildContentAsync(
         Guid organizationId,
@@ -313,6 +334,24 @@ public sealed class SyncService(
                     activity.Unit))
                 .ToArray();
 
+        var photos = payload.Photos is null
+            ? existing?.Photos
+                .Select(photo => new PhotoEntry(
+                    photo.LocalReference,
+                    photo.Latitude,
+                    photo.Longitude,
+                    photo.CapturedAt,
+                    photo.Caption))
+                .ToArray() ?? []
+            : payload.Photos
+                .Select(photo => new PhotoEntry(
+                    photo.LocalReference,
+                    photo.Latitude,
+                    photo.Longitude,
+                    photo.CapturedAt,
+                    photo.Caption))
+                .ToArray();
+
         var safetyChecks = payload.SafetyChecks is null
             ? existing?.SafetyChecks
                 .Select(check => new SafetyCheckEntry(
@@ -333,7 +372,8 @@ public sealed class SyncService(
             payload.Notes,
             crew,
             activities,
-            safetyChecks);
+            safetyChecks,
+            photos);
     }
 
     private async Task EnsureCrewBelongsToOrganizationAsync(

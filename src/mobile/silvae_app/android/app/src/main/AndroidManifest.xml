@@ -1,5 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Le foto del report sono geolocalizzate: senza questi permessi la
+         fotocamera non si apre e la posizione resta vuota. La posizione è
+         facoltativa per l'app, che accetta una foto senza coordinate. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Il GPS non è indispensabile: il telefono senza sensore installa lo
+         stesso e le foto arrivano senza coordinate. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
     <application
         android:label="Silvae"
         android:name="${applicationName}"

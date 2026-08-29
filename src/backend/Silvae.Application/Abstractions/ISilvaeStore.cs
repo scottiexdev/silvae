@@ -1,6 +1,8 @@
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.Documents;
 using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
+using Silvae.Domain.People;
 using Silvae.Domain.Worksites;
 
 namespace Silvae.Application.Abstractions;
@@ -74,6 +76,40 @@ public interface ISilvaeStore
         DateTimeOffset? changedSince,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// I report che l'ufficio cerca. Il filtro arriva già validato: qui si
+    /// traduce soltanto in una query.
+    /// </summary>
+    Task<IReadOnlyList<DailyReport>> SearchDailyReportsAsync(
+        Guid organizationId,
+        Guid userId,
+        bool includeAll,
+        DailyReportFilter filter,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Certification>> GetCertificationsAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken);
+
+    Task<Certification?> GetCertificationAsync(
+        Guid organizationId,
+        Guid certificationId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Elenca l'archivio senza leggere i byte: una lista di documenti non deve
+    /// tirare su dal database i megabyte che non mostra.
+    /// </summary>
+    Task<IReadOnlyList<StoredDocumentSummary>> GetDocumentSummariesAsync(
+        Guid organizationId,
+        Guid? worksiteId,
+        CancellationToken cancellationToken);
+
+    Task<StoredDocument?> GetDocumentAsync(
+        Guid organizationId,
+        Guid documentId,
+        CancellationToken cancellationToken);
+
     Task<ProcessedSyncOperation?> GetProcessedOperationAsync(
         Guid organizationId,
         Guid operationId,
@@ -101,6 +137,14 @@ public interface ISilvaeStore
 
     void AddProcessedOperation(ProcessedSyncOperation operation);
 
+    void AddCertification(Certification certification);
+
+    void RemoveCertification(Certification certification);
+
+    void AddDocument(StoredDocument document);
+
+    void RemoveDocument(StoredDocument document);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }
 
@@ -110,3 +154,28 @@ public sealed record ProcessedSyncOperation(
     Guid EntityId,
     long EntityVersion,
     DateTimeOffset ProcessedAt);
+
+/// <summary>
+/// Come l'ufficio restringe l'elenco dei report. Ogni criterio assente non
+/// filtra.
+/// </summary>
+public sealed record DailyReportFilter(
+    Guid? JobOrderId = null,
+    Guid? WorksiteId = null,
+    Guid? CrewUserId = null,
+    DateOnly? From = null,
+    DateOnly? To = null,
+    DailyReportStatus? Status = null);
+
+public sealed record StoredDocumentSummary(
+    Guid Id,
+    Guid? WorksiteId,
+    string Title,
+    string Category,
+    DateOnly? IssuedOn,
+    DateOnly? ExpiresOn,
+    string FileName,
+    string ContentType,
+    int SizeBytes,
+    Guid UploadedBy,
+    DateTimeOffset UploadedAt);

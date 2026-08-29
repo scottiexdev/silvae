@@ -16,6 +16,15 @@ RUN dotnet publish src/backend/Silvae.Api/Silvae.Api.csproj \
     --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+
+# QuestPDF disegna il PDF della rendicontazione con Skia, che su Linux cerca i
+# font attraverso fontconfig. Senza queste due cose l'export cade in
+# produzione, non in CI: il container si avvia lo stesso e risponde a
+# /api/health.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://0.0.0.0:10000

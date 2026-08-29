@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.Documents;
 using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
+using Silvae.Domain.People;
 using Silvae.Domain.Worksites;
 
 namespace Silvae.Infrastructure.Persistence;
@@ -30,6 +32,13 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
 
     public DbSet<DailyReportSafetyCheck> DailyReportSafetyChecks =>
         Set<DailyReportSafetyCheck>();
+
+    public DbSet<DailyReportPhoto> DailyReportPhotos =>
+        Set<DailyReportPhoto>();
+
+    public DbSet<Certification> Certifications => Set<Certification>();
+
+    public DbSet<StoredDocument> Documents => Set<StoredDocument>();
 
     public DbSet<DailyReportAuditEntry> DailyReportAudit =>
         Set<DailyReportAuditEntry>();
@@ -114,6 +123,7 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
             entity.Property(item => item.Id).ValueGeneratedNever();
             entity.Property(item => item.Notes).HasMaxLength(4000);
             entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(item => item.Signature).HasMaxLength(200);
             entity.HasIndex(item => new
             {
                 item.OrganizationId,
@@ -139,10 +149,16 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
                 .WithOne()
                 .HasForeignKey(item => item.DailyReportId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(item => item.Photos)
+                .WithOne()
+                .HasForeignKey(item => item.DailyReportId)
+                .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(item => item.Audit)
                 .WithOne()
                 .HasForeignKey(item => item.DailyReportId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.Navigation(item => item.Photos)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
             entity.Navigation(item => item.Crew)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
             entity.Navigation(item => item.Activities)
@@ -183,6 +199,57 @@ public sealed class SilvaeDbContext(DbContextOptions<SilvaeDbContext> options)
             entity.Property(item => item.Code).HasMaxLength(64);
             entity.Property(item => item.Note).HasMaxLength(500);
             entity.HasIndex(item => item.DailyReportId);
+        });
+
+        modelBuilder.Entity<DailyReportPhoto>(entity =>
+        {
+            entity.ToTable("daily_report_photos");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.LocalReference).HasMaxLength(200);
+            entity.Property(item => item.Caption).HasMaxLength(500);
+            entity.HasIndex(item => item.DailyReportId);
+        });
+
+        modelBuilder.Entity<Certification>(entity =>
+        {
+            entity.ToTable("certifications");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Kind).HasMaxLength(120);
+            entity.Property(item => item.Issuer).HasMaxLength(200);
+            entity.Property(item => item.Notes).HasMaxLength(1000);
+            entity.HasIndex(item => new { item.OrganizationId, item.UserId });
+            entity.HasIndex(item => item.ExpiresOn);
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<StoredDocument>()
+                .WithMany()
+                .HasForeignKey(item => item.DocumentId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<StoredDocument>(entity =>
+        {
+            entity.ToTable("documents");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Title).HasMaxLength(200);
+            entity.Property(item => item.Category).HasMaxLength(64);
+            entity.Property(item => item.FileName).HasMaxLength(260);
+            entity.Property(item => item.ContentType).HasMaxLength(128);
+            entity.Ignore(item => item.SizeBytes);
+            entity.HasIndex(item => new { item.OrganizationId, item.WorksiteId });
+            entity.HasOne<Organization>()
+                .WithMany()
+                .HasForeignKey(item => item.OrganizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Worksite>()
+                .WithMany()
+                .HasForeignKey(item => item.WorksiteId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DailyReportAuditEntry>(entity =>

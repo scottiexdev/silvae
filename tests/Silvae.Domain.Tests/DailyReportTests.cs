@@ -16,6 +16,8 @@ public sealed class DailyReportTests
 
     private static readonly SafetyCheckEntry[] NoSafetyChecks = [];
 
+    private static readonly PhotoEntry[] NoPhotos = [];
+
     [Fact]
     public void UpdateContentIncrementsVersionAndNormalizesNotes()
     {
@@ -29,7 +31,8 @@ public sealed class DailyReportTests
                 "  Potatura completata  ",
                 NoCrew,
                 NoActivities,
-                NoSafetyChecks),
+                NoSafetyChecks,
+                NoPhotos),
             report.AuthorId,
             Now.AddMinutes(10));
 
@@ -43,7 +46,7 @@ public sealed class DailyReportTests
     public void ApprovedReportCannotBeEdited()
     {
         var report = CreateReport(CrewOf(4m));
-        report.Submit(report.AuthorId, Now.AddMinutes(10));
+        report.Submit(report.AuthorId, "Mario Rossi", Now.AddMinutes(10));
         report.Approve(Guid.NewGuid(), Now.AddMinutes(20));
 
         var action = () => report.UpdateContent(
@@ -53,7 +56,8 @@ public sealed class DailyReportTests
                 null,
                 NoCrew,
                 NoActivities,
-                NoSafetyChecks),
+                NoSafetyChecks,
+                NoPhotos),
             report.AuthorId,
             Now.AddMinutes(30));
 
@@ -65,7 +69,7 @@ public sealed class DailyReportTests
     {
         var report = CreateReport();
 
-        var action = () => report.Submit(report.AuthorId, Now.AddMinutes(10));
+        var action = () => report.Submit(report.AuthorId, "Mario Rossi", Now.AddMinutes(10));
 
         action.Should().Throw<InvalidOperationException>();
         report.Status.Should().Be(DailyReportStatus.Draft);
@@ -122,7 +126,8 @@ public sealed class DailyReportTests
                 [
                     new SafetyCheckEntry("dpi-casco", true, null),
                     new SafetyCheckEntry("DPI-CASCO", true, null),
-                ]),
+                ],
+                NoPhotos),
             report.AuthorId,
             Now.AddMinutes(5));
 
@@ -145,7 +150,7 @@ public sealed class DailyReportTests
         var report = CreateReport(CrewOf(8m));
         var coordinator = Guid.NewGuid();
 
-        report.Submit(report.AuthorId, Now.AddMinutes(10));
+        report.Submit(report.AuthorId, "Mario Rossi", Now.AddMinutes(10));
         report.Approve(coordinator, Now.AddMinutes(20));
         report.Reopen(coordinator, Now.AddMinutes(30));
 
@@ -162,7 +167,7 @@ public sealed class DailyReportTests
     public void AReopenedReportCanBeEditedAgain()
     {
         var report = CreateReport(CrewOf(8m));
-        report.Submit(report.AuthorId, Now.AddMinutes(10));
+        report.Submit(report.AuthorId, "Mario Rossi", Now.AddMinutes(10));
         report.Reopen(Guid.NewGuid(), Now.AddMinutes(20));
 
         report.UpdateContent(
@@ -172,7 +177,8 @@ public sealed class DailyReportTests
                 "Corretto",
                 [new CrewEntry(Guid.NewGuid(), 6m, null)],
                 NoActivities,
-                NoSafetyChecks),
+                NoSafetyChecks,
+                NoPhotos),
             report.AuthorId,
             Now.AddMinutes(30));
 
@@ -193,7 +199,8 @@ public sealed class DailyReportTests
                 null,
                 NoCrew,
                 NoActivities,
-                NoSafetyChecks),
+                NoSafetyChecks,
+                NoPhotos),
             Now);
 
         action.Should().Throw<ArgumentOutOfRangeException>();
@@ -216,7 +223,8 @@ public sealed class DailyReportTests
                 null,
                 crew,
                 NoActivities,
-                NoSafetyChecks),
+                NoSafetyChecks,
+                NoPhotos),
             Now);
     }
 }

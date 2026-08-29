@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:silvae_app/features/authentication/presentation/auth_gate.dart';
 
+const Color silvaeGreen = Color(0xFF246B45);
+
 final _configuredRouter = GoRouter(
   routes: [GoRoute(path: '/', builder: (context, state) => const AuthGate())],
 );
@@ -23,7 +25,7 @@ class SilvaeApp extends StatelessWidget {
       title: 'Silvae',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF246B45)),
+        colorScheme: ColorScheme.fromSeed(seedColor: silvaeGreen),
         scaffoldBackgroundColor: const Color(0xFFF6F8F5),
         inputDecorationTheme: const InputDecorationTheme(filled: true),
         useMaterial3: true,
@@ -46,7 +48,7 @@ class _ConfigurationPage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.forest, color: Color(0xFF246B45), size: 56),
+                Icon(Icons.forest, color: silvaeGreen, size: 56),
                 SizedBox(height: 16),
                 Text(
                   'Silvae',

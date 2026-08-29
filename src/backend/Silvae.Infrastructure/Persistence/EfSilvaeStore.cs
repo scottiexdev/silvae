@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Silvae.Application.Abstractions;
 using Silvae.Domain.DailyReports;
+using Silvae.Domain.Documents;
 using Silvae.Domain.JobOrders;
 using Silvae.Domain.Organizations;
+using Silvae.Domain.People;
 using Silvae.Domain.Worksites;
 
 namespace Silvae.Infrastructure.Persistence;
@@ -156,7 +158,7 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
     }
 
     /// <summary>
-    /// Il rapportino arriva con il suo contenuto: squadra, attività, sicurezza
+    /// Il report arriva con il suo contenuto: squadra, attività, sicurezza
     /// e audit fanno parte dell'aggregato e l'upsert li sostituisce insieme.
     /// </summary>
     public Task<DailyReport?> GetDailyReportAsync(
@@ -168,6 +170,7 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             .Include(item => item.Crew)
             .Include(item => item.Activities)
             .Include(item => item.SafetyChecks)
+            .Include(item => item.Photos)
             .Include(item => item.Audit)
             .SingleOrDefaultAsync(
                 item => item.OrganizationId == organizationId &&
@@ -187,6 +190,7 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             .Include(item => item.Crew)
             .Include(item => item.Activities)
             .Include(item => item.SafetyChecks)
+            .Include(item => item.Photos)
             .Where(item => item.OrganizationId == organizationId);
 
         if (changedSince is not null)
@@ -207,6 +211,132 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             .OrderBy(item => item.UpdatedAt)
             .ThenBy(item => item.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DailyReport>> SearchDailyReportsAsync(
+        Guid organizationId,
+        Guid userId,
+        bool includeAll,
+        DailyReportFilter filter,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var query = dbContext.DailyReports
+            .AsNoTracking()
+            .Include(item => item.Crew)
+            .Include(item => item.Activities)
+            .Include(item => item.SafetyChecks)
+            .Include(item => item.Photos)
+            .Where(item => item.OrganizationId == organizationId);
+
+        if (!includeAll)
+        {
+            query = query.Where(item =>
+                item.AuthorId == userId ||
+                dbContext.WorksiteAssignments.Any(assignment =>
+                    assignment.WorksiteId == item.WorksiteId &&
+                    assignment.UserId == userId));
+        }
+
+        if (filter.WorksiteId is { } worksiteId)
+        {
+            query = query.Where(item => item.WorksiteId == worksiteId);
+        }
+
+        if (filter.JobOrderId is { } jobOrderId)
+        {
+            query = query.Where(item => dbContext.Worksites.Any(worksite =>
+                worksite.Id == item.WorksiteId &&
+                worksite.JobOrderId == jobOrderId));
+        }
+
+        if (filter.CrewUserId is { } crewUserId)
+        {
+            query = query.Where(item =>
+                item.Crew.Any(member => member.UserId == crewUserId));
+        }
+
+        if (filter.From is { } from)
+        {
+            query = query.Where(item => item.ReportDate >= from);
+        }
+
+        if (filter.To is { } to)
+        {
+            query = query.Where(item => item.ReportDate <= to);
+        }
+
+        if (filter.Status is { } status)
+        {
+            query = query.Where(item => item.Status == status);
+        }
+
+        return await query
+            .OrderByDescending(item => item.ReportDate)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Certification>> GetCertificationsAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Certifications
+            .Where(item => item.OrganizationId == organizationId)
+            .OrderBy(item => item.Kind)
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<Certification?> GetCertificationAsync(
+        Guid organizationId,
+        Guid certificationId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Certifications.SingleOrDefaultAsync(
+            item => item.OrganizationId == organizationId && item.Id == certificationId,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<StoredDocumentSummary>> GetDocumentSummariesAsync(
+        Guid organizationId,
+        Guid? worksiteId,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Documents
+            .AsNoTracking()
+            .Where(item => item.OrganizationId == organizationId);
+
+        if (worksiteId is { } id)
+        {
+            query = query.Where(item => item.WorksiteId == id);
+        }
+
+        return await query
+            .OrderByDescending(item => item.UploadedAt)
+            .Select(item => new StoredDocumentSummary(
+                item.Id,
+                item.WorksiteId,
+                item.Title,
+                item.Category,
+                item.IssuedOn,
+                item.ExpiresOn,
+                item.FileName,
+                item.ContentType,
+                item.Content.Length,
+                item.UploadedBy,
+                item.UploadedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public Task<StoredDocument?> GetDocumentAsync(
+        Guid organizationId,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.Documents.SingleOrDefaultAsync(
+            item => item.OrganizationId == organizationId && item.Id == documentId,
+            cancellationToken);
     }
 
     public async Task<ProcessedSyncOperation?> GetProcessedOperationAsync(
@@ -289,6 +419,26 @@ public sealed class EfSilvaeStore(SilvaeDbContext dbContext) : ISilvaeStore
             EntityVersion = operation.EntityVersion,
             ProcessedAt = operation.ProcessedAt,
         });
+    }
+
+    public void AddCertification(Certification certification)
+    {
+        dbContext.Certifications.Add(certification);
+    }
+
+    public void RemoveCertification(Certification certification)
+    {
+        dbContext.Certifications.Remove(certification);
+    }
+
+    public void AddDocument(StoredDocument document)
+    {
+        dbContext.Documents.Add(document);
+    }
+
+    public void RemoveDocument(StoredDocument document)
+    {
+        dbContext.Documents.Remove(document);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)

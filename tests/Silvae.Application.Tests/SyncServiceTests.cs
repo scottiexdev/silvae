@@ -187,15 +187,21 @@ public sealed class SyncServiceTests
         string operationType = "upsert",
         IReadOnlyList<CrewMemberPayload>? crew = null,
         IReadOnlyList<ActivityPayload>? activities = null,
-        IReadOnlyList<SafetyCheckPayload>? safetyChecks = null)
+        IReadOnlyList<SafetyCheckPayload>? safetyChecks = null,
+        IReadOnlyList<PhotoPayload>? photos = null)
     {
-        var payload = JsonSerializer.SerializeToElement(new DailyReportPayload(
-            WorksiteId,
-            new DateOnly(2026, 7, 25),
-            "Sfalcio",
-            crew,
-            activities,
-            safetyChecks));
+        // L'invio porta la conferma del caposquadra, non il contenuto: è
+        // l'unico caso in cui il payload dell'operazione cambia forma.
+        var payload = operationType == "submit"
+            ? JsonSerializer.SerializeToElement(new SubmitPayload("Mario Rossi"))
+            : JsonSerializer.SerializeToElement(new DailyReportPayload(
+                WorksiteId,
+                new DateOnly(2026, 7, 25),
+                "Sfalcio",
+                crew,
+                activities,
+                safetyChecks,
+                photos));
 
         return new SyncOperationDto(
             operationId ?? Guid.NewGuid(),

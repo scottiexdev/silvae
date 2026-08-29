@@ -15,6 +15,10 @@ public static class DependencyInjection
         IConfiguration configuration,
         IHostEnvironment environment)
     {
+        // Licenza Community di QuestPDF: gratuita sotto il milione di dollari
+        // di ricavi. Va dichiarata prima di generare il primo PDF.
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
         var connectionString = configuration.GetConnectionString("Silvae");
 
         services.AddDbContext<SilvaeDbContext>(options =>

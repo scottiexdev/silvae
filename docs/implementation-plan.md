@@ -219,7 +219,52 @@ silvae/
 
 **Completata quando:** su un telefono in modalità aereo è possibile creare un rapportino, chiudere e riaprire l'app, ritrovare i dati e sincronizzarli una sola volta al ritorno della rete.
 
-### Milestone 2 — Rapportino MVP
+### Milestone 2 — Rapportino MVP — completata
+
+**Il documento giornaliero si chiama «report».** Vale per l'interfaccia e per
+il codice; questo piano e gli ADR scritti prima dicono «rapportino» ed è la
+stessa cosa. Il nome del tipo resta `DailyReport`, che descrive cos'è meglio di
+entrambi.
+
+Le schermate esistono: anagrafica di commesse, cantieri e squadra, e la
+compilazione completa del report con squadra e ore, lavorazioni, checklist di
+sicurezza, foto e note. La cornice mostra sezioni diverse secondo il ruolo, che
+l'app legge da `GET /api/me` e usa solo per decidere cosa disegnare: cosa sia
+permesso lo decide il backend, che il ruolo lo rilegge dalla membership a ogni
+richiesta.
+
+**Le foto sono geolocalizzate, ma i byte restano sul dispositivo.** Il server
+registra riferimento, posizione e istante dello scatto; l'immagine sta nel
+database locale, come previsto dalla sezione 6. Il caricamento su storage a
+oggetti con URL firmati arriva quando servirà vederle dall'ufficio, e non
+prima. La posizione è facoltativa per costruzione: sotto una chioma fitta il
+GPS non aggancia, e una foto senza coordinate vale più di nessuna foto.
+
+**La firma è una conferma digitata, non un disegno.** Chi invia scrive il
+proprio nome e conferma che ore, lavorazioni e sicurezza sono corrette; il
+server registra nome, autore e istante. Riaprire il report cancella la
+conferma, perché copriva il contenuto di allora. Una firma con valore legale
+resta fra le decisioni rinviate della sezione 12, e un disegno a schermo non è
+più probante di un nome digitato.
+
+**Il conflitto si risolve guardando le due versioni.** Quando il pull trova un
+report cambiato sul server mentre il dispositivo ha ancora modifiche in coda,
+non lo scarta e non lo sovrascrive: mette da parte la copia remota accanto a
+quella locale. La schermata le mostra entrambe e chiede quale tenere, e questo
+funziona anche senza rete perché sono già tutte e due sul dispositivo. Tenere
+la propria ripropone l'operazione sulla versione che il server ha dichiarato
+nel 409; tenere quella del server butta via la coda e applica la copia remota.
+
+**Le operazioni in fila su uno stesso report si correggono la versione a
+vicenda.** Un invio accodato offline dopo una modifica non può conoscere la
+versione che quella modifica produrrà: la coda gliela passa quando l'operazione
+precedente viene confermata. Senza, ogni invio compilato senza rete sarebbe
+arrivato in conflitto.
+
+Resta aperta la checklist di sicurezza per organizzazione: le voci sono ancora
+una costante nel client, uguale per tutti.
+
+#### Storia del blocco risolto il 2026-08-26
 
 **Blocker risolto (2026-08-26):** il database locale usava `sqflite`, che su
 Flutter Web non ha alcuna implementazione — `getDatabasesPath()` lanciava
@@ -257,29 +302,66 @@ oggi ci si passa chiamando l'API.
 
 Il contenuto del rapportino esiste sul backend: squadra con le ore,
 lavorazioni, checklist di sicurezza, stati e audit di chi li ha mossi
-(ADR 005). Restano l'interfaccia e le parti che dipendono da scelte ancora
-aperte.
+(ADR 005).
 
-- Schermate di anagrafica per commesse, cantieri e squadre.
-- Schermata di compilazione del rapportino: squadra, ore, attività e
-  checklist.
-- Foto geolocalizzate.
-- Firma o conferma del caposquadra.
-- Gestione esplicita dei conflitti.
+- ~~Schermate di anagrafica per commesse, cantieri e squadre.~~
+- ~~Schermata di compilazione del rapportino: squadra, ore, attività e
+  checklist.~~
+- ~~Foto geolocalizzate.~~
+- ~~Firma o conferma del caposquadra.~~
+- ~~Gestione esplicita dei conflitti.~~
 
 **Completata quando:** un rapportino reale della cooperativa può essere compilato integralmente senza carta.
 
-### Milestone 3 — Ufficio e rendicontazione
+### Milestone 3 — Ufficio e rendicontazione — completata
 
-- Vista coordinatore dei rapportini.
-- Ricerca e filtri per commessa, cantiere, squadra e data.
-- Correzione o riapertura controllata.
-- Export PDF e formato tabellare concordato con la cooperativa.
-- Archivio documenti e autorizzazioni del cantiere.
-- Competenze e certificazioni per persona: patentino motosega, abilitazione
+**La rendicontazione ha una riga per persona e per giornata**, non una per
+report: è la forma del foglio presenze che sostituisce, ed è quella in cui
+l'ufficio la usa. Esce in CSV con separatore punto e virgola e BOM, come Excel
+in italiano se l'aspetta, e in PDF orizzontale da stampare. I due export
+partono dagli stessi filtri dell'elenco a schermo, così quello che si stampa è
+quello che si stava guardando.
+
+**Il PDF ha una dipendenza nativa.** QuestPDF disegna con Skia, che su Linux
+cerca i font attraverso fontconfig: il `Dockerfile` installa `fontconfig` e
+`fonts-dejavu-core`. Il difetto sarebbe invisibile in CI, dove il container
+risponde a `/api/health` senza generare un PDF, quindi un test di integrazione
+chiede l'export e verifica che risponda un documento vero.
+
+**La correzione passa dalla riapertura**, non da un endpoint di modifica per
+l'ufficio: riaprire riporta il report in mano al cantiere, dove viene corretto
+con la stessa schermata che l'ha compilato e la stessa coda, e l'audit tiene il
+percorso. Un secondo modo di scrivere lo stesso documento avrebbe due
+autorizzazioni da tenere allineate invece di una.
+
+**La validità di un'abilitazione è un intervallo.** L'estrazione per
+l'ispezione parte dalle giornate dichiarate e per ognuna dice chi c'era e con
+quali abilitazioni valide *a quella data*: è la domanda che fa un RSPP, e uno
+schema con la sola scadenza avrebbe risposto a un'altra.
+
+**I documenti stanno in Postgres, con un tetto di 10 MB per file.** Sono poche
+decine di PDF per organizzazione e così non servono né Supabase Storage né la
+firma degli URL. Se l'archivio cresce, o se ci entrano le foto, il contenuto
+passa allo storage a oggetti e nel database resta la chiave.
+
+Le abilitazioni sono materia d'ufficio: le legge e le scrive chi risponde
+davanti a un ente finanziatore o a un RSPP. L'archivio invece lo consulta tutta
+l'organizzazione, perché la squadra deve poter mostrare l'autorizzazione a chi
+la chiede in cantiere; caricare e cancellare resta dell'ufficio.
+
+#### Elenco originario
+
+- ~~Vista coordinatore dei rapportini.~~
+- ~~Ricerca e filtri per commessa, cantiere, squadra e data.~~
+- ~~Correzione o riapertura controllata.~~
+- ~~Export PDF e formato tabellare~~ — il tracciato non è ancora stato
+  concordato con la cooperativa: quello attuale ricalca il foglio presenze
+  cartaceo e va confrontato con chi lo compila oggi.
+- ~~Archivio documenti e autorizzazioni del cantiere.~~
+- ~~Competenze e certificazioni per persona: patentino motosega, abilitazione
   trattore, corso DPI e sicurezza, con ente rilasciante, data di rilascio,
-  scadenza e attestato allegato.
-- Avvisi sulle certificazioni in scadenza ed estrazione per ispezione.
+  scadenza e attestato allegato.~~
+- ~~Avvisi sulle certificazioni in scadenza ed estrazione per ispezione.~~
 
 La validità di una certificazione va conservata come intervallo, non come stato
 corrente. Un'ispezione su lavori di otto mesi fa chiede se l'operatore era

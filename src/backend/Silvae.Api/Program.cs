@@ -89,6 +89,8 @@ app.MapOrganizationEndpoints();
 app.MapJobOrderEndpoints();
 app.MapWorksiteEndpoints();
 app.MapDailyReportEndpoints();
+app.MapCertificationEndpoints();
+app.MapDocumentEndpoints();
 app.MapSyncEndpoints();
 
 app.Run();

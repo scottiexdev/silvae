@@ -10,47 +10,17 @@ import 'package:uuid/uuid.dart';
 
 const _organizationId = '53ff67bc-58c3-45b8-8d10-3ff4771c38c0';
 const _worksiteId = '664583a8-66f2-443a-9c69-27b45eaabfd8';
+const _userId = 'a0f5a0a4-6d97-4a3c-9d2c-0a1d2f6a5b31';
 
-Future<void> _createSchema(Database database, int version) async {
-  await database.execute('''
-    CREATE TABLE daily_reports (
-      id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL,
-      worksite_id TEXT NOT NULL,
-      report_date TEXT NOT NULL,
-      notes TEXT,
-      status TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      sync_status TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  ''');
-  await database.execute('''
-    CREATE TABLE outbox (
-      operation_id TEXT PRIMARY KEY,
-      organization_id TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      entity_type TEXT NOT NULL,
-      operation_type TEXT NOT NULL,
-      expected_version INTEGER NOT NULL,
-      payload TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      attempts INTEGER NOT NULL DEFAULT 0,
-      last_error TEXT,
-      status TEXT NOT NULL
-    )
-  ''');
-  await database.execute('''
-    CREATE TABLE sync_state (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  ''');
-}
-
+/// Lo stesso schema dell'app, non una copia scritta a mano: una copia si
+/// scollega al primo campo aggiunto e i test smettono di provare quel che
+/// gira davvero sul telefono.
 Future<Database> _openTestDatabase() => databaseFactoryFfi.openDatabase(
   inMemoryDatabasePath,
-  options: OpenDatabaseOptions(version: 1, onCreate: _createSchema),
+  options: OpenDatabaseOptions(
+    version: 3,
+    onCreate: LocalDatabase.createSchema,
+  ),
 );
 
 /// Un Dio che rifiuta ogni richiesta, così la sincronizzazione si può
@@ -109,6 +79,117 @@ Dio _acceptingDio() {
                   )
                   .toList(),
               'serverTime': now,
+            },
+          ),
+        );
+      },
+    ),
+  );
+  return dio;
+}
+
+/// Un Dio che si comporta come il server sulle versioni: ogni operazione
+/// accettata alza di uno la versione dell'entità. Registra anche quel che ha
+/// ricevuto, perché è lì che si vede se la coda ha corretto la versione
+/// attesa.
+Dio _versioningDio(List<Map<String, dynamic>> received) {
+  final dio = Dio();
+  var version = 0;
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final now = DateTime.now().toUtc().toIso8601String();
+        if (!options.path.endsWith('/push')) {
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {'dailyReports': <dynamic>[], 'serverTime': now},
+            ),
+          );
+          return;
+        }
+        final body = options.data! as Map<String, dynamic>;
+        final sent = (body['operations'] as List<dynamic>)
+            .cast<Map<String, dynamic>>();
+        received.addAll(sent);
+        version++;
+        handler.resolve(
+          Response<Map<String, dynamic>>(
+            requestOptions: options,
+            statusCode: 200,
+            data: {
+              'operations': sent
+                  .map(
+                    (item) => {
+                      'operationId': item['operationId'],
+                      'entityId': item['entityId'],
+                      'version': version,
+                      'wasDuplicate': false,
+                    },
+                  )
+                  .toList(),
+              'serverTime': now,
+            },
+          ),
+        );
+      },
+    ),
+  );
+  return dio;
+}
+
+/// Un Dio che rifiuta il push con un conflitto e dichiara la versione che il
+/// server ha adesso, e che al pull restituisce quella versione.
+Dio _conflictingDio({
+  required int serverVersion,
+  required String Function() reportId,
+}) {
+  final dio = Dio();
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final now = DateTime.now().toUtc();
+        if (options.path.endsWith('/push')) {
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              response: Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 409,
+                data: {
+                  'status': 409,
+                  'context': {'currentVersion': serverVersion},
+                },
+              ),
+            ),
+          );
+          return;
+        }
+        handler.resolve(
+          Response<Map<String, dynamic>>(
+            requestOptions: options,
+            statusCode: 200,
+            data: {
+              'dailyReports': [
+                {
+                  'id': reportId(),
+                  'organizationId': _organizationId,
+                  'worksiteId': _worksiteId,
+                  'authorId': _userId,
+                  'reportDate': '2026-07-25',
+                  'notes': 'Corretto in ufficio',
+                  'status': 'Draft',
+                  'signature': null,
+                  'version': serverVersion,
+                  'updatedAt': now.toIso8601String(),
+                  'crew': <dynamic>[],
+                  'activities': <dynamic>[],
+                  'safetyChecks': <dynamic>[],
+                  'photos': <dynamic>[],
+                },
+              ],
+              'serverTime': now.toIso8601String(),
             },
           ),
         );
@@ -236,6 +317,94 @@ void main() {
 
     expect(await repository.hasPendingOperations(), isTrue);
     expect(scheduler.pendingRetry, const Duration(minutes: 1));
+  });
+
+  test('the queued submit waits for the version the upsert produced', () async {
+    final database = await _openTestDatabase();
+    addTearDown(database.close);
+    final received = <Map<String, dynamic>>[];
+    final repository = _repository(database, dio: _versioningDio(received));
+
+    final reportId = await repository.createOffline(
+      worksiteId: _worksiteId,
+      reportDate: DateTime(2026, 7, 25),
+      content: const ReportContent(crew: [CrewLine(userId: _userId, hours: 8)]),
+    );
+    // Compilato e inviato in cantiere, senza rete in mezzo: quando accoda
+    // l'invio il dispositivo conosce ancora la versione 0.
+    await repository.submitOffline(
+      reportId: reportId,
+      expectedVersion: 0,
+      signature: 'Mario Rossi',
+    );
+
+    await repository.synchronize();
+
+    expect(received, hasLength(2));
+    expect(received[0]['operationType'], 'upsert');
+    expect(received[0]['expectedVersion'], 0);
+    expect(received[1]['operationType'], 'submit');
+    expect(
+      received[1]['expectedVersion'],
+      1,
+      reason: 'l\'invio si applica sopra la modifica che lo precede',
+    );
+    expect(await repository.hasPendingOperations(), isFalse);
+  });
+
+  test('keeping the local version retries on the server version', () async {
+    final database = await _openTestDatabase();
+    addTearDown(database.close);
+    var reportId = '';
+    final repository = _repository(
+      database,
+      dio: _conflictingDio(serverVersion: 7, reportId: () => reportId),
+    );
+
+    reportId = await repository.createOffline(
+      worksiteId: _worksiteId,
+      reportDate: DateTime(2026, 7, 25),
+      notes: 'Scritto in cantiere',
+    );
+    await repository.synchronize();
+    await repository.keepLocalVersion(reportId);
+
+    final operations = await LocalDatabase(database).getPendingOperations();
+    expect(operations, hasLength(1));
+    expect(operations.single['expected_version'], 7);
+    expect(operations.single['payload'], contains('Scritto in cantiere'));
+    final report = await repository.getReport(reportId);
+    expect(report!.syncStatus, ReportSyncStatus.device);
+  });
+
+  test('keeping the server version drops what was queued', () async {
+    final database = await _openTestDatabase();
+    addTearDown(database.close);
+    var reportId = '';
+    final repository = _repository(
+      database,
+      dio: _conflictingDio(serverVersion: 7, reportId: () => reportId),
+    );
+
+    reportId = await repository.createOffline(
+      worksiteId: _worksiteId,
+      reportDate: DateTime(2026, 7, 25),
+      notes: 'Scritto in cantiere',
+    );
+    await repository.synchronize();
+
+    // Il pull ha messo da parte la copia del server invece di scartarla:
+    // la scelta si può fare anche senza tornare in rete.
+    final conflicting = await repository.getReport(reportId);
+    expect(conflicting!.remoteSnapshot?.notes, 'Corretto in ufficio');
+
+    await repository.keepServerVersion(reportId);
+
+    final report = await repository.getReport(reportId);
+    expect(report!.notes, 'Corretto in ufficio');
+    expect(report.version, 7);
+    expect(report.syncStatus, ReportSyncStatus.synced);
+    expect(await repository.hasPendingOperations(), isFalse);
   });
 
   test('a version conflict leaves the outbox queue', () async {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_app/app/dependencies.dart';
 import 'package:silvae_app/features/authentication/presentation/login_page.dart';
-import 'package:silvae_app/features/home/presentation/home_page.dart';
+import 'package:silvae_app/features/home/presentation/home_shell.dart';
 
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
@@ -12,7 +12,7 @@ class AuthGate extends ConsumerWidget {
     return ref
         .watch(authStateProvider)
         .when(
-          data: (signedIn) => signedIn ? const HomePage() : const LoginPage(),
+          data: (signedIn) => signedIn ? const HomeShell() : const LoginPage(),
           loading: () =>
               const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (error, stackTrace) => Scaffold(

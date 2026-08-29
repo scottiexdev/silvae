@@ -1,9 +1,13 @@
 # Silvae
 
 Silvae è una piattaforma multi-tenant e offline-first per squadre impegnate in
-cantieri di manutenzione verde e forestale. Questo repository contiene il primo
-vertical slice: login Supabase, cantieri assegnati, rapportino locale, outbox e
-sincronizzazione idempotente.
+cantieri di manutenzione verde e forestale: login Supabase, anagrafica,
+compilazione del report di cantiere offline con foto geolocalizzate, outbox e
+sincronizzazione idempotente, vista d'ufficio con export e archivio delle
+abilitazioni.
+
+Nell'interfaccia e nel codice recente il documento giornaliero si chiama
+**report**. Gli ADR scritti prima lo chiamano «rapportino»: è la stessa cosa.
 
 ## Struttura
 
@@ -53,6 +57,31 @@ cd src/mobile/silvae_app
 dart run sqflite_common_ffi_web:setup --force && rm -f web/sqflite_sw.js
 ```
 
+## L'app
+
+Le sezioni dipendono dal ruolo letto da `GET /api/me`. Chi lavora in cantiere
+vede **Report** e **Cantieri**; amministratori e coordinatori vedono anche
+**Ufficio**, **Anagrafica** e **Sicurezza**. Il ruolo decide cosa l'app mostra,
+non cosa concede: quello lo decide il backend, che lo rilegge dalla membership
+a ogni richiesta.
+
+- **Report**: quel che c'è sul dispositivo, con lo stato della sincronizzazione
+  e la compilazione completa. Un report modificato anche altrove non si
+  sovrascrive da solo: apre una schermata che mette a confronto le due versioni,
+  entrambe già sul dispositivo, e chiede quale tenere.
+- **Cantieri**: i cantieri assegnati, con le autorizzazioni da mostrare a chi le
+  chiede sul posto.
+- **Ufficio**: tutti i report dell'organizzazione, filtrabili per commessa,
+  cantiere, persona in squadra, periodo e stato, con approvazione, riapertura ed
+  export negli stessi filtri.
+- **Anagrafica**: commesse, cantieri, squadra e archivio dei documenti.
+- **Sicurezza**: abilitazioni delle persone, avvisi di scadenza ed estrazione
+  per l'ispezione.
+
+Su Android e iOS l'app chiede fotocamera e posizione la prima volta che si
+allega una foto. Il permesso negato non blocca niente: la foto viene allegata
+senza coordinate.
+
 ## Anagrafica e primo accesso
 
 Su un database vuoto nessuno appartiene a un'organizzazione e `GET /api/me`
@@ -84,36 +113,66 @@ L'identificativo di una persona è quello del suo utente Supabase: l'API concede
 l'accesso a un account che esiste, non lo crea. L'ultimo amministratore non può
 essere né degradato né rimosso.
 
-## Rapportino
+## Report di cantiere
 
-Il rapportino contiene cantiere, data, note, squadra con le ore, lavorazioni
-eseguite e checklist di sicurezza, e percorre gli stati `Draft`, `Submitted`,
-`Approved` e `Reopened` registrando in un audit chi lo ha mosso e quando. Le
-regole sono in
+Il report contiene cantiere, data, note, squadra con le ore, lavorazioni
+eseguite, checklist di sicurezza e foto geolocalizzate, e percorre gli stati
+`Draft`, `Submitted`, `Approved` e `Reopened` registrando in un audit chi lo ha
+mosso e quando. Le regole sono in
 [`docs/adr/005-contenuto-del-rapportino.md`](docs/adr/005-contenuto-del-rapportino.md).
+
+L'invio richiede la conferma del caposquadra: chi invia digita il proprio nome
+e conferma che ore, lavorazioni e sicurezza sono corrette. Riaprire il report
+cancella la conferma, perché copriva il contenuto di allora.
+
+Delle foto il server registra la scheda — riferimento sul dispositivo,
+posizione e istante dello scatto — mentre i byte restano sul telefono, come
+previsto dalla strategia offline. Il caricamento su storage a oggetti arriva
+quando servirà vedere le foto dall'ufficio.
 
 Quello che accade in cantiere passa dalla coda di sincronizzazione, perché deve
 funzionare senza rete: `POST /api/sync/push` accetta le operazioni `upsert` e
 `submit`, entrambe con versione attesa e identificativo che le rende ripetibili
-senza duplicati. L'upsert sostituisce il contenuto del rapportino; una lista
+senza duplicati. L'upsert sostituisce il contenuto del report; una lista
 assente dal payload lascia intatta quella già registrata, una lista vuota la
-cancella.
+cancella. Il payload di `submit` porta invece la sola conferma del caposquadra.
 
 Quello che accade in ufficio è online e passa da endpoint diretti.
 
 | Metodo | Percorso | Cosa fa |
 | --- | --- | --- |
-| `GET` | `/api/daily-reports/{id}` | scheda con squadra, attività, sicurezza e audit |
-| `POST` | `/api/daily-reports/{id}/submit` | invia il rapportino |
+| `GET` | `/api/daily-reports` | elenco filtrabile per `jobOrderId`, `worksiteId`, `crewUserId`, `from`, `to`, `status` |
+| `GET` | `/api/daily-reports/export.csv` | rendicontazione tabellare, una riga per persona e giornata |
+| `GET` | `/api/daily-reports/export.pdf` | la stessa rendicontazione da stampare |
+| `GET` | `/api/daily-reports/{id}` | scheda con squadra, attività, sicurezza, foto e audit |
+| `POST` | `/api/daily-reports/{id}/submit` | invia il report, con la conferma nel corpo |
 | `POST` | `/api/daily-reports/{id}/approve` | approva, riservato ad `Administrator` e `Coordinator` |
-| `POST` | `/api/daily-reports/{id}/reopen` | riapre un rapportino inviato o approvato |
+| `POST` | `/api/daily-reports/{id}/reopen` | riapre un report inviato o approvato |
 
-Un rapportino senza squadra non può essere inviato, una persona non può
-comparire due volte, le ore stanno fra 0 escluso e 24 e una voce di sicurezza
-non conforme richiede una nota.
+Un report senza squadra o senza conferma non può essere inviato, una persona
+non può comparire due volte, le ore stanno fra 0 escluso e 24 e una voce di
+sicurezza non conforme richiede una nota.
 
-L'app non compila ancora questi campi: le schermate arrivano dopo, e fino ad
-allora il rapportino sincronizzato dal telefono resta quello minimo.
+## Abilitazioni e archivio
+
+La validità di un'abilitazione è un intervallo, non uno stato corrente:
+un'ispezione su lavori di otto mesi fa chiede se l'operatore era abilitato
+*quel giorno*.
+
+| Metodo | Percorso | Cosa fa |
+| --- | --- | --- |
+| `GET` `POST` | `/api/certifications` | elenca e registra le abilitazioni |
+| `PUT` `DELETE` | `/api/certifications/{id}` | corregge o rimuove |
+| `GET` | `/api/certifications/expiring?withinDays=60` | scadute e in scadenza |
+| `GET` | `/api/certifications/inspection?from=&to=&worksiteId=` | per ogni giornata dichiarata, chi c'era e con quali abilitazioni valide a quella data |
+| `GET` `POST` | `/api/documents` | archivio: autorizzazioni di cantiere e attestati |
+| `GET` | `/api/documents/{id}/content` | scarica il file |
+| `DELETE` | `/api/documents/{id}` | lo toglie dall'archivio |
+
+I documenti stanno in Postgres con un tetto di 10 MB per file: sono poche
+decine di PDF per organizzazione e così non servono né storage a oggetti né URL
+firmati. Se l'archivio cresce, il contenuto passa allo storage e nel database
+resta la chiave.
 
 ## Verifica
 
@@ -122,6 +181,7 @@ dotnet build Silvae.sln
 dotnet test Silvae.sln
 
 cd src/mobile/silvae_app
+dart format --output=none --set-exit-if-changed lib test ../silvae_api_client/lib
 flutter analyze
 flutter test
 ```
