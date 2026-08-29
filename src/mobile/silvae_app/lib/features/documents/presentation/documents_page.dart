@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/core/files/file_transfer.dart';
 import 'package:silvae_app/features/daily_reports/presentation/report_list_page.dart'
     show formatDay;
@@ -21,51 +23,44 @@ class DocumentsPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: documents.when(
-        data: (items) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          children: items.isEmpty
-              ? const [Text('Nessun documento in archivio.')]
-              : items
+        data: (items) => items.isEmpty
+            ? const Center(
+                child: EmptyState(
+                  icon: Icons.folder_open_outlined,
+                  title: 'Archivio vuoto',
+                  message:
+                      'Autorizzazioni, attestati e perizie caricati qui '
+                      'restano consultabili anche dal cantiere.',
+                ),
+              )
+            : PageBody(
+                padding: const EdgeInsets.fromLTRB(
+                  Insets.gutter,
+                  Insets.gap,
+                  Insets.gutter,
+                  Insets.bottom,
+                ),
+                children: items
                     .map(
-                      (item) => Card(
-                        child: ListTile(
-                          leading: Icon(
-                            item.isExpired
-                                ? Icons.event_busy_outlined
-                                : Icons.description_outlined,
-                            color: item.isExpired ? Colors.red : null,
-                          ),
-                          title: Text(item.title),
-                          subtitle: Text(
-                            '${item.category} · '
-                            '${(item.sizeBytes / 1024).round()} kB\n'
-                            '${item.expiresOn == null ? 'Senza scadenza' : 'Scade il ${formatDay(item.expiresOn!)}'}',
-                          ),
-                          isThreeLine: true,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Scarica',
-                                icon: const Icon(Icons.download_outlined),
-                                onPressed: () => _download(context, ref, item),
-                              ),
-                              if (canManage)
-                                IconButton(
-                                  tooltip: 'Elimina',
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () => _delete(context, ref, item),
-                                ),
-                            ],
-                          ),
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: Insets.gap),
+                        child: _DocumentCard(
+                          document: item,
+                          canManage: canManage,
+                          onDownload: () => _download(context, ref, item),
+                          onDelete: () => _delete(context, ref, item),
                         ),
                       ),
                     )
                     .toList(growable: false),
+              ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Archivio non leggibile: $error')),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Archivio non leggibile', detail: error),
+        ),
       ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
@@ -165,6 +160,91 @@ class DocumentsPage extends ConsumerWidget {
       );
     }
   }
+}
+
+class _DocumentCard extends StatelessWidget {
+  const _DocumentCard({
+    required this.document,
+    required this.canManage,
+    required this.onDownload,
+    required this.onDelete,
+  });
+
+  final DocumentDto document;
+  final bool canManage;
+  final VoidCallback onDownload;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final expired = document.isExpired;
+
+    return SurfaceCard(
+      onTap: onDownload,
+      accent: expired ? toneColors(context, Tone.danger).foreground : null,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconBadge(
+            icon: expired
+                ? Icons.event_busy_outlined
+                : _iconFor(document.category),
+            tone: expired ? Tone.danger : Tone.neutral,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(document.title, style: theme.textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Facts([
+                  (Icons.sell_outlined, document.category),
+                  (
+                    Icons.data_usage_outlined,
+                    '${(document.sizeBytes / 1024).round()} kB',
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                StatusPill(
+                  label: document.expiresOn == null
+                      ? 'Senza scadenza'
+                      : expired
+                      ? 'Scaduto il ${formatDay(document.expiresOn!)}'
+                      : 'Scade il ${formatDay(document.expiresOn!)}',
+                  tone: document.expiresOn == null
+                      ? Tone.neutral
+                      : expired
+                      ? Tone.danger
+                      : Tone.positive,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Scarica',
+            icon: const Icon(Icons.download_outlined, size: 20),
+            onPressed: onDownload,
+          ),
+          if (canManage)
+            IconButton(
+              tooltip: 'Elimina',
+              icon: const Icon(Icons.delete_outline, size: 20),
+              onPressed: onDelete,
+            ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconFor(String category) => switch (category) {
+    'Autorizzazione' => Icons.verified_outlined,
+    'Attestato' => Icons.workspace_premium_outlined,
+    'Perizia' => Icons.biotech_outlined,
+    'Contratto' => Icons.handshake_outlined,
+    _ => Icons.description_outlined,
+  };
 }
 
 final class _DocumentDraft {

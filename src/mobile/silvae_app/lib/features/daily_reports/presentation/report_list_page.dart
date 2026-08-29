@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/features/daily_reports/domain/daily_report.dart';
 import 'package:silvae_app/features/daily_reports/presentation/conflict_dialog.dart';
 import 'package:silvae_app/features/daily_reports/presentation/report_editor_page.dart';
@@ -26,18 +28,38 @@ class ReportListPage extends ConsumerWidget {
             ..invalidate(worksitesProvider)
             ..invalidate(dailyReportsProvider);
         },
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        child: PageBody(
           children: [
-            const Text('I dati vengono salvati prima sul dispositivo.'),
-            const SizedBox(height: 16),
+            const InfoNote(
+              'Quello che scrivi è già salvato sul dispositivo. Parte da solo '
+              'appena la rete torna.',
+              icon: Icons.offline_bolt_outlined,
+            ),
+            gapSections,
             reports.when(
               data: (items) => items.isEmpty
-                  ? const _EmptyReports()
+                  ? EmptyState(
+                      icon: Icons.description_outlined,
+                      title: 'Nessun report qui sopra',
+                      message:
+                          'Il primo report della giornata si apre dal '
+                          'pulsante in basso e si compila anche senza rete.',
+                    )
                   : Column(
-                      children: items
-                          .map(
-                            (report) => _ReportCard(
+                      children: [
+                        SectionHeader(
+                          title: 'Giornate compilate',
+                          trailing: Text(
+                            '${items.length}',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleMedium?.tabular,
+                          ),
+                        ),
+                        ...items.map(
+                          (report) => Padding(
+                            padding: const EdgeInsets.only(bottom: Insets.gap),
+                            child: _ReportCard(
                               report: report,
                               worksite: worksites.value
                                   ?.where(
@@ -49,12 +71,15 @@ class ReportListPage extends ConsumerWidget {
                               onResolve: () =>
                                   _resolveConflict(context, ref, report),
                             ),
-                          )
-                          .toList(growable: false),
+                          ),
+                        ),
+                      ],
                     ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) =>
-                  Text('Impossibile leggere i dati locali: $error'),
+              loading: () => const LoadingList(),
+              error: (error, stackTrace) => ErrorState(
+                title: 'Impossibile leggere i dati locali',
+                detail: error,
+              ),
             ),
           ],
         ),
@@ -153,71 +178,107 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, label, color) = syncStatusBadge(report.syncStatus);
+    final theme = Theme.of(context);
+    final sync = syncStatusBadge(report.syncStatus);
     final isConflict = report.syncStatus == ReportSyncStatus.conflict;
 
-    return Card(
-      child: ListTile(
-        title: Text(worksite?.name ?? 'Cantiere'),
-        subtitle: Text(
-          '${worksite?.jobOrderName ?? 'Commessa non assegnata'}\n'
-          '${formatDay(report.reportDate)} · '
-          '${report.content.crew.length} in squadra · '
-          '${formatHours(report.content.totalHours)} ore\n'
-          '${translateStatus(report.status)} · $label',
-        ),
-        isThreeLine: true,
-        leading: Icon(icon, color: color),
-        trailing: isConflict
-            ? FilledButton.tonal(
-                onPressed: onResolve,
-                child: const Text('Risolvi'),
-              )
-            : const Icon(Icons.chevron_right),
-        onTap: isConflict ? onResolve : onOpen,
+    return SurfaceCard(
+      onTap: isConflict ? onResolve : onOpen,
+      accent: isConflict ? toneColors(context, Tone.caution).foreground : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconBadge(icon: sync.$1, tone: sync.$3),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      worksite?.name ?? 'Cantiere',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      worksite?.jobOrderName ?? 'Commessa non assegnata',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (isConflict)
+                FilledButton.tonal(
+                  onPressed: onResolve,
+                  child: const Text('Risolvi'),
+                )
+              else
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Facts([
+            (Icons.event_outlined, formatDay(report.reportDate)),
+            (Icons.groups_outlined, '${report.content.crew.length} in squadra'),
+            (
+              Icons.schedule_outlined,
+              '${formatHours(report.content.totalHours)} ore',
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              StatusPill(
+                label: translateStatus(report.status),
+                tone: statusTone(report.status),
+              ),
+              StatusPill(label: sync.$2, tone: sync.$3, icon: sync.$1),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _EmptyReports extends StatelessWidget {
-  const _EmptyReports();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text('Non ci sono ancora report su questo dispositivo.'),
-      ),
-    );
-  }
-}
-
-(IconData, String, Color) syncStatusBadge(ReportSyncStatus status) =>
+(IconData, String, Tone) syncStatusBadge(ReportSyncStatus status) =>
     switch (status) {
       ReportSyncStatus.device => (
         Icons.smartphone,
-        'Salvato sul dispositivo',
-        Colors.blueGrey,
+        'Sul dispositivo',
+        Tone.neutral,
       ),
-      ReportSyncStatus.syncing => (Icons.sync, 'Sincronizzazione', Colors.blue),
+      ReportSyncStatus.syncing => (Icons.sync, 'In invio', Tone.info),
       ReportSyncStatus.synced => (
-        Icons.cloud_done,
+        Icons.cloud_done_outlined,
         'Sincronizzato',
-        Colors.green,
+        Tone.positive,
       ),
       ReportSyncStatus.conflict => (
         Icons.merge_type,
         'Modificato anche altrove',
-        Colors.orange,
+        Tone.caution,
       ),
       ReportSyncStatus.error => (
         Icons.sync_problem,
         'Errore di sincronizzazione',
-        Colors.red,
+        Tone.danger,
       ),
     };
+
+Tone statusTone(String status) => switch (status) {
+  'Approved' => Tone.positive,
+  'Submitted' => Tone.info,
+  'Reopened' => Tone.caution,
+  _ => Tone.neutral,
+};
 
 String translateStatus(String status) => switch (status) {
   'Draft' => 'Bozza',

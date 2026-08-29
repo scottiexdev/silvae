@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/features/daily_reports/presentation/report_list_page.dart'
     show formatDay, formatHours;
 
@@ -16,13 +18,7 @@ class SafetyPage extends StatelessWidget {
       length: 3,
       child: Column(
         children: [
-          TabBar(
-            tabs: [
-              Tab(text: 'Abilitazioni'),
-              Tab(text: 'In scadenza'),
-              Tab(text: 'Ispezione'),
-            ],
-          ),
+          TabStrip(['Abilitazioni', 'In scadenza', 'Ispezione']),
           Expanded(
             child: TabBarView(
               children: [
@@ -46,39 +42,50 @@ class _CertificationsTab extends ConsumerWidget {
     final certifications = ref.watch(certificationsProvider);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: certifications.when(
-        data: (items) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          children: items.isEmpty
-              ? const [Text('Nessuna abilitazione registrata.')]
-              : items
+        data: (items) => items.isEmpty
+            ? Center(
+                child: EmptyState(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Nessuna abilitazione registrata',
+                  message:
+                      'Patentini e corsi valgono per un intervallo di date: '
+                      'l\'ispezione chiede chi era abilitato quel giorno.',
+                  action: FilledButton.icon(
+                    onPressed: () => _edit(context, ref, null),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Prima abilitazione'),
+                  ),
+                ),
+              )
+            : PageBody(
+                padding: const EdgeInsets.fromLTRB(
+                  Insets.gutter,
+                  Insets.gap,
+                  Insets.gutter,
+                  Insets.bottom,
+                ),
+                children: items
                     .map(
-                      (item) => Card(
-                        child: ListTile(
-                          title: Text(item.displayName),
-                          subtitle: Text(_validity(item)),
-                          leading: Icon(
-                            item.isValidToday
-                                ? Icons.verified_outlined
-                                : Icons.gpp_bad_outlined,
-                            color: item.isValidToday
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                          trailing: IconButton(
-                            tooltip: 'Elimina',
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _delete(context, ref, item),
-                          ),
-                          onTap: () => _edit(context, ref, item),
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: Insets.gap),
+                        child: _CertificationCard(
+                          certification: item,
+                          onEdit: () => _edit(context, ref, item),
+                          onDelete: () => _delete(context, ref, item),
                         ),
                       ),
                     )
                     .toList(growable: false),
+              ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Abilitazioni non leggibili: $error')),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Abilitazioni non leggibili', detail: error),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'add-certification',
@@ -88,11 +95,6 @@ class _CertificationsTab extends ConsumerWidget {
       ),
     );
   }
-
-  static String _validity(CertificationDto item) =>
-      '${item.kind}\n'
-      'Valida dal ${formatDay(item.validFrom)}'
-      '${item.expiresOn == null ? ', senza scadenza' : ' al ${formatDay(item.expiresOn!)}'}';
 
   Future<void> _edit(
     BuildContext context,
@@ -162,56 +164,159 @@ class _CertificationsTab extends ConsumerWidget {
   }
 }
 
+/// La scheda di un'abilitazione: chi, cosa e per quanto ancora vale.
+class _CertificationCard extends StatelessWidget {
+  const _CertificationCard({
+    required this.certification,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final CertificationDto certification;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final valid = certification.isValidToday;
+
+    return SurfaceCard(
+      onTap: onEdit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconBadge(
+                icon: valid ? Icons.verified_outlined : Icons.gpp_bad_outlined,
+                tone: valid ? Tone.positive : Tone.danger,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      certification.displayName,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(certification.kind, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              StatusPill(
+                label: valid ? 'Valida oggi' : 'Non valida',
+                tone: valid ? Tone.positive : Tone.danger,
+              ),
+              IconButton(
+                tooltip: 'Elimina',
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: onDelete,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Facts([
+            (Icons.play_arrow_outlined, formatDay(certification.validFrom)),
+            (
+              Icons.event_busy_outlined,
+              certification.expiresOn == null
+                  ? 'Senza scadenza'
+                  : formatDay(certification.expiresOn!),
+            ),
+            if (certification.issuer != null)
+              (Icons.apartment_outlined, certification.issuer!),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
 class _ExpiringTab extends ConsumerWidget {
   const _ExpiringTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final expiring = ref.watch(expiringCertificationsProvider);
 
     return expiring.when(
-      data: (items) => ListView(
-        padding: const EdgeInsets.all(16),
+      data: (items) => PageBody(
+        padding: const EdgeInsets.all(Insets.gutter),
         children: [
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Abilitazioni già scadute o in scadenza nei prossimi 60 '
-                'giorni. Un operatore senza abilitazione valida non può fare '
-                'la lavorazione che richiede.',
-              ),
-            ),
+          const InfoNote(
+            'Abilitazioni già scadute o in scadenza nei prossimi 60 giorni. '
+            'Un operatore senza abilitazione valida non può fare la '
+            'lavorazione che la richiede.',
+            icon: Icons.notifications_active_outlined,
           ),
+          gapSections,
           if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Nessuna abilitazione in scadenza.'),
+            const EmptyState(
+              icon: Icons.check_circle_outline,
+              title: 'Nessuna scadenza in vista',
+              message: 'Nei prossimi 60 giorni non scade niente.',
             )
           else
-            ...items.map(
-              (item) => Card(
-                child: ListTile(
-                  leading: Icon(
-                    Icons.warning_amber,
-                    color: item.isValidToday ? Colors.orange : Colors.red,
-                  ),
-                  title: Text('${item.displayName} · ${item.kind}'),
-                  subtitle: Text(
-                    item.daysToExpiry == null
-                        ? 'Senza scadenza'
-                        : item.daysToExpiry! < 0
-                        ? 'Scaduta da ${-item.daysToExpiry!} giorni'
-                        : 'Scade fra ${item.daysToExpiry} giorni',
+            ...items.map((item) {
+              final overdue =
+                  item.daysToExpiry != null && item.daysToExpiry! < 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: Insets.gap),
+                child: SurfaceCard(
+                  accent: toneColors(
+                    context,
+                    overdue ? Tone.danger : Tone.caution,
+                  ).foreground,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconBadge(
+                        icon: overdue
+                            ? Icons.gpp_bad_outlined
+                            : Icons.warning_amber,
+                        tone: overdue ? Tone.danger : Tone.caution,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.displayName,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(item.kind, style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                      StatusPill(
+                        label: item.daysToExpiry == null
+                            ? 'Senza scadenza'
+                            : overdue
+                            ? 'Scaduta da ${-item.daysToExpiry!} giorni'
+                            : 'Fra ${item.daysToExpiry} giorni',
+                        tone: overdue ? Tone.danger : Tone.caution,
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
         ],
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) =>
-          Center(child: Text('Scadenze non leggibili: $error')),
+      loading: () => const Padding(
+        padding: EdgeInsets.all(Insets.gutter),
+        child: LoadingList(rows: 3),
+      ),
+      error: (error, stackTrace) => Center(
+        child: ErrorState(title: 'Scadenze non leggibili', detail: error),
+      ),
     );
   }
 }
@@ -261,101 +366,146 @@ class _InspectionTabState extends ConsumerState<_InspectionTab> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final worksites = ref.watch(allWorksitesProvider).value ?? const [];
     final result = _result;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return PageBody(
+      padding: const EdgeInsets.all(Insets.gutter),
       children: [
-        const Card(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Per ogni giornata dichiarata: chi era in cantiere e con quali '
-              'abilitazioni valide a quella data, non a oggi.',
-            ),
-          ),
+        const InfoNote(
+          'Per ogni giornata dichiarata: chi era in cantiere e con quali '
+          'abilitazioni valide a quella data, non a oggi.',
+          icon: Icons.gavel_outlined,
         ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.date_range),
-          title: const Text('Periodo'),
-          subtitle: Text(
-            _range == null
-                ? 'Da scegliere'
-                : '${formatDay(_range!.start)} – ${formatDay(_range!.end)}',
-          ),
-          onTap: () async {
-            final picked = await showDateRangePicker(
-              context: context,
-              firstDate: DateTime(DateTime.now().year - 5),
-              lastDate: DateTime.now(),
-            );
-            if (picked != null) {
-              setState(() => _range = picked);
-            }
-          },
-        ),
-        DropdownButtonFormField<String>(
-          initialValue: _worksiteId,
-          decoration: const InputDecoration(
-            labelText: 'Cantiere (tutti se vuoto)',
-          ),
-          items: worksites
-              .map(
-                (item) => DropdownMenuItem(
-                  value: item.id,
-                  child: Text('${item.code} · ${item.name}'),
+        gapSections,
+        SurfaceCard(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SectionHeader(title: 'Cosa estrarre'),
+              InkWell(
+                borderRadius: BorderRadius.circular(Radii.chip),
+                onTap: () async {
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(DateTime.now().year - 5),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() => _range = picked);
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    children: [
+                      const IconBadge(
+                        icon: Icons.date_range_outlined,
+                        size: 36,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Periodo', style: theme.textTheme.bodyLarge),
+                            Text(
+                              _range == null
+                                  ? 'Da scegliere'
+                                  : '${formatDay(_range!.start)} – '
+                                        '${formatDay(_range!.end)}',
+                              style: theme.textTheme.bodySmall?.tabular,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.edit_calendar_outlined, size: 20),
+                    ],
+                  ),
                 ),
-              )
-              .toList(growable: false),
-          onChanged: (value) => setState(() => _worksiteId = value),
-        ),
-        const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: _range == null || _loading ? null : _extract,
-          icon: const Icon(Icons.search),
-          label: const Text('Estrai'),
-        ),
-        const SizedBox(height: 16),
-        if (_loading) const Center(child: CircularProgressIndicator()),
-        if (_error != null) Text('Estrazione non riuscita: $_error'),
-        if (result != null && result.isEmpty)
-          const Text('Nessuna giornata dichiarata nel periodo.'),
-        if (result != null)
-          ...result.map(
-            (day) => Card(
-              child: ExpansionTile(
-                title: Text(
-                  '${formatDay(day.reportDate)} · ${day.worksiteCode}',
+              ),
+              const SizedBox(height: Insets.gap),
+              DropdownButtonFormField<String>(
+                initialValue: _worksiteId,
+                decoration: const InputDecoration(
+                  labelText: 'Cantiere (tutti se vuoto)',
                 ),
-                subtitle: Text('${day.crew.length} in cantiere'),
-                children: day.crew
+                items: worksites
                     .map(
-                      (person) => ListTile(
-                        title: Text(
-                          '${person.displayName} · '
-                          '${formatHours(person.hours)} ore',
-                        ),
-                        subtitle: Text(
-                          person.certifications.isEmpty
-                              ? 'Nessuna abilitazione valida quel giorno'
-                              : person.certifications
-                                    .map((item) => item.kind)
-                                    .join(', '),
-                        ),
-                        leading: Icon(
-                          person.certifications.isEmpty
-                              ? Icons.gpp_maybe_outlined
-                              : Icons.verified_outlined,
-                          color: person.certifications.isEmpty
-                              ? Colors.orange
-                              : Colors.green,
-                        ),
+                      (item) => DropdownMenuItem(
+                        value: item.id,
+                        child: Text('${item.code} · ${item.name}'),
                       ),
                     )
                     .toList(growable: false),
+                onChanged: (value) => setState(() => _worksiteId = value),
+              ),
+              const SizedBox(height: Insets.gutter),
+              FilledButton.icon(
+                onPressed: _range == null || _loading ? null : _extract,
+                icon: const Icon(Icons.search, size: 18),
+                label: Text(_loading ? 'Estrazione…' : 'Estrai'),
+              ),
+            ],
+          ),
+        ),
+        gapSections,
+        if (_loading) const LoadingList(rows: 2),
+        if (_error != null)
+          ErrorState(title: 'Estrazione non riuscita', detail: _error!),
+        if (result != null && result.isEmpty)
+          const EmptyState(
+            icon: Icons.event_note_outlined,
+            title: 'Nessuna giornata dichiarata',
+            message: 'Nel periodo scelto non risultano report.',
+          ),
+        if (result != null && result.isNotEmpty)
+          ...result.map(
+            (day) => Padding(
+              padding: const EdgeInsets.only(bottom: Insets.gap),
+              child: SurfaceCard(
+                padding: EdgeInsets.zero,
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  leading: const IconBadge(
+                    icon: Icons.event_available_outlined,
+                    size: 36,
+                  ),
+                  title: Text(
+                    '${formatDay(day.reportDate)} · ${day.worksiteCode}',
+                    style: theme.textTheme.titleSmall?.tabular,
+                  ),
+                  subtitle: Text('${day.crew.length} in cantiere'),
+                  children: day.crew
+                      .map((person) {
+                        final uncovered = person.certifications.isEmpty;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: IconBadge(
+                            icon: uncovered
+                                ? Icons.gpp_maybe_outlined
+                                : Icons.verified_outlined,
+                            tone: uncovered ? Tone.caution : Tone.positive,
+                            size: 36,
+                          ),
+                          title: Text(
+                            '${person.displayName} · '
+                            '${formatHours(person.hours)} ore',
+                          ),
+                          subtitle: Text(
+                            uncovered
+                                ? 'Nessuna abilitazione valida quel giorno'
+                                : person.certifications
+                                      .map((item) => item.kind)
+                                      .join(', '),
+                          ),
+                        );
+                      })
+                      .toList(growable: false),
+                ),
               ),
             ),
           ),

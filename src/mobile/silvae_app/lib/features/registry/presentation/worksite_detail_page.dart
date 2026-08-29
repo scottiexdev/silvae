@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/features/documents/presentation/documents_page.dart';
 import 'package:silvae_app/features/registry/presentation/registry_page.dart'
     show translateRole;
@@ -20,72 +22,140 @@ class WorksiteDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
     final detail = ref.watch(_worksiteDetailProvider(worksiteId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cantiere')),
       body: detail.when(
-        data: (item) => ListView(
-          padding: const EdgeInsets.all(16),
+        data: (item) => PageBody(
+          padding: const EdgeInsets.all(Insets.gutter),
           children: [
-            Card(
-              child: ListTile(
-                title: Text('${item.worksite.code} · ${item.worksite.name}'),
-                subtitle: Text(
-                  '${item.worksite.jobOrderName ?? 'Commessa non assegnata'}\n'
-                  '${item.worksite.address ?? 'Indirizzo non indicato'}',
-                ),
-                isThreeLine: true,
-                trailing: Switch(
-                  value: item.worksite.isActive,
-                  onChanged: (value) => _setActive(context, ref, value),
-                ),
+            SurfaceCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IconBadge(
+                        icon: Icons.terrain_outlined,
+                        tone: item.worksite.isActive
+                            ? Tone.positive
+                            : Tone.neutral,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.worksite.name,
+                              style: theme.textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item.worksite.jobOrderName ??
+                                  'Commessa non assegnata',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: item.worksite.isActive,
+                        onChanged: (value) => _setActive(context, ref, value),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Facts([
+                    (Icons.tag, item.worksite.code),
+                    (
+                      Icons.place_outlined,
+                      item.worksite.address ?? 'Indirizzo non indicato',
+                    ),
+                  ]),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Squadra assegnata',
-                    style: Theme.of(context).textTheme.titleMedium,
+            gapSections,
+            SurfaceCard(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SectionHeader(
+                    title: 'Squadra assegnata',
+                    trailing: StatusPill(
+                      label: '${item.assignments.length}',
+                      tone: item.assignments.isEmpty
+                          ? Tone.caution
+                          : Tone.neutral,
+                    ),
+                    onAdd: () => _assign(context, ref, item),
+                    addTooltip: 'Assegna una persona',
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Assegna una persona',
-                  icon: const Icon(Icons.person_add_alt),
-                  onPressed: () => _assign(context, ref, item),
-                ),
-              ],
-            ),
-            const Divider(),
-            if (item.assignments.isEmpty)
-              const Text('Nessuno assegnato: nessuno vedrà questo cantiere.')
-            else
-              ...item.assignments.map(
-                (member) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(member.displayName),
-                  subtitle: Text(translateRole(member.role)),
-                  trailing: IconButton(
-                    tooltip: 'Togli dal cantiere',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => _unassign(context, ref, member.userId),
-                  ),
-                ),
+                  if (item.assignments.isEmpty)
+                    Text(
+                      'Nessuno assegnato: nessuno vedrà questo cantiere.',
+                      style: theme.textTheme.bodySmall,
+                    )
+                  else
+                    ...item.assignments.map(
+                      (member) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            const IconBadge(
+                              icon: Icons.person_outline,
+                              size: 36,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    member.displayName,
+                                    style: theme.textTheme.bodyLarge,
+                                  ),
+                                  Text(
+                                    translateRole(member.role),
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Togli dal cantiere',
+                              icon: const Icon(Icons.close, size: 18),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () =>
+                                  _unassign(context, ref, member.userId),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            const SizedBox(height: 24),
-            Text(
-              'Documenti e autorizzazioni',
-              style: Theme.of(context).textTheme.titleMedium,
             ),
-            const Divider(),
+            gapSections,
+            const SectionHeader(
+              title: 'Documenti e autorizzazioni',
+              subtitle: 'Quelli da mostrare a chi li chiede sul posto',
+            ),
             SizedBox(height: 360, child: DocumentsPage(worksiteId: worksiteId)),
           ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Cantiere non leggibile: $error')),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
+        ),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Cantiere non leggibile', detail: error),
+        ),
       ),
     );
   }
@@ -118,15 +188,24 @@ class WorksiteDetailPage extends ConsumerWidget {
       builder: (context) => SafeArea(
         child: ListView(
           shrinkWrap: true,
-          children: selectable
-              .map(
-                (member) => ListTile(
-                  title: Text(member.displayName),
-                  subtitle: Text(translateRole(member.role)),
-                  onTap: () => Navigator.pop(context, member),
-                ),
-              )
-              .toList(growable: false),
+          padding: const EdgeInsets.only(bottom: Insets.gutter),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+              child: Text(
+                'Chi lavora qui',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            ...selectable.map(
+              (member) => ListTile(
+                leading: const IconBadge(icon: Icons.person_outline, size: 36),
+                title: Text(member.displayName),
+                subtitle: Text(translateRole(member.role)),
+                onTap: () => Navigator.pop(context, member),
+              ),
+            ),
+          ],
         ),
       ),
     );

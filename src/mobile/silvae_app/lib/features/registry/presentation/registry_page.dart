@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/features/documents/presentation/documents_page.dart';
 import 'package:silvae_app/features/registry/presentation/worksite_detail_page.dart';
 
@@ -12,19 +14,12 @@ class RegistryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
+    return const DefaultTabController(
       length: 4,
       child: Column(
         children: [
-          const TabBar(
-            tabs: [
-              Tab(text: 'Commesse'),
-              Tab(text: 'Cantieri'),
-              Tab(text: 'Squadra'),
-              Tab(text: 'Archivio'),
-            ],
-          ),
-          const Expanded(
+          TabStrip(['Commesse', 'Cantieri', 'Squadra', 'Archivio']),
+          Expanded(
             child: TabBarView(
               children: [
                 _JobOrdersTab(),
@@ -48,31 +43,58 @@ class _JobOrdersTab extends ConsumerWidget {
     final jobOrders = ref.watch(jobOrdersProvider);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: jobOrders.when(
-        data: (items) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          children: items.isEmpty
-              ? const [Text('Nessuna commessa.')]
-              : items
+        data: (items) => items.isEmpty
+            ? Center(
+                child: EmptyState(
+                  icon: Icons.work_outline,
+                  title: 'Nessuna commessa',
+                  message:
+                      'La commessa tiene insieme i cantieri di uno stesso '
+                      'lavoro e il committente che lo paga.',
+                  action: FilledButton.icon(
+                    onPressed: () => _edit(context, ref, null),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Prima commessa'),
+                  ),
+                ),
+              )
+            : PageBody(
+                padding: const EdgeInsets.fromLTRB(
+                  Insets.gutter,
+                  Insets.gap,
+                  Insets.gutter,
+                  Insets.bottom,
+                ),
+                children: items
                     .map(
-                      (item) => Card(
-                        child: ListTile(
-                          title: Text('${item.code} · ${item.name}'),
-                          subtitle: Text(
-                            item.customer ?? 'Committente non indicato',
-                          ),
-                          trailing: item.isActive
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: Insets.gap),
+                        child: _RegistryCard(
+                          icon: Icons.work_outline,
+                          title: item.name,
+                          subtitle: item.customer ?? 'Committente non indicato',
+                          facts: [(Icons.tag, item.code)],
+                          pill: item.isActive
                               ? null
-                              : const Chip(label: Text('Chiusa')),
+                              : const StatusPill(
+                                  label: 'Chiusa',
+                                  tone: Tone.neutral,
+                                ),
                           onTap: () => _edit(context, ref, item),
                         ),
                       ),
                     )
                     .toList(growable: false),
+              ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Anagrafica non leggibile: $error')),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Anagrafica non leggibile', detail: error),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'add-job-order',
@@ -235,22 +257,50 @@ class _WorksitesTab extends ConsumerWidget {
     final worksites = ref.watch(allWorksitesProvider);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: worksites.when(
-        data: (items) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          children: items.isEmpty
-              ? const [Text('Nessun cantiere.')]
-              : items
+        data: (items) => items.isEmpty
+            ? Center(
+                child: EmptyState(
+                  icon: Icons.terrain_outlined,
+                  title: 'Nessun cantiere',
+                  message:
+                      'Il cantiere si può censire anche prima che la commessa '
+                      'sia formalizzata.',
+                  action: FilledButton.icon(
+                    onPressed: () => _create(context, ref),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Primo cantiere'),
+                  ),
+                ),
+              )
+            : PageBody(
+                padding: const EdgeInsets.fromLTRB(
+                  Insets.gutter,
+                  Insets.gap,
+                  Insets.gutter,
+                  Insets.bottom,
+                ),
+                children: items
                     .map(
-                      (item) => Card(
-                        child: ListTile(
-                          title: Text('${item.code} · ${item.name}'),
-                          subtitle: Text(
-                            item.jobOrderName ?? 'Commessa non assegnata',
-                          ),
-                          trailing: item.isActive
-                              ? const Icon(Icons.chevron_right)
-                              : const Chip(label: Text('Chiuso')),
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: Insets.gap),
+                        child: _RegistryCard(
+                          icon: Icons.terrain_outlined,
+                          title: item.name,
+                          subtitle:
+                              item.jobOrderName ?? 'Commessa non assegnata',
+                          facts: [
+                            (Icons.tag, item.code),
+                            if (item.address != null)
+                              (Icons.place_outlined, item.address!),
+                          ],
+                          pill: item.isActive
+                              ? null
+                              : const StatusPill(
+                                  label: 'Chiuso',
+                                  tone: Tone.neutral,
+                                ),
                           onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                               builder: (context) =>
@@ -261,10 +311,14 @@ class _WorksitesTab extends ConsumerWidget {
                       ),
                     )
                     .toList(growable: false),
+              ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Anagrafica non leggibile: $error')),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Anagrafica non leggibile', detail: error),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'add-worksite',
@@ -421,27 +475,34 @@ class _MembersTab extends ConsumerWidget {
     final members = ref.watch(organizationMembersProvider);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: members.when(
-        data: (items) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        data: (items) => PageBody(
+          padding: const EdgeInsets.fromLTRB(
+            Insets.gutter,
+            Insets.gutter,
+            Insets.gutter,
+            Insets.bottom,
+          ),
           children: [
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'Qui non si creano account: si dà accesso a chi si è già '
-                  'registrato. L\'identificativo è quello del suo utente.',
-                ),
-              ),
+            const InfoNote(
+              'Qui non si creano account: si dà accesso a chi si è già '
+              'registrato. L\'identificativo è quello del suo utente.',
+              icon: Icons.badge_outlined,
             ),
+            gapSections,
             ...items.map(
-              (item) => Card(
-                child: ListTile(
-                  title: Text(item.displayName),
-                  subtitle: Text(translateRole(item.role)),
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: Insets.gap),
+                child: _RegistryCard(
+                  icon: _iconForRole(item.role),
+                  tone: item.role == 'Administrator' ? Tone.info : Tone.neutral,
+                  title: item.displayName,
+                  subtitle: translateRole(item.role),
+                  facts: const [],
                   trailing: IconButton(
                     tooltip: 'Togli dall\'organizzazione',
-                    icon: const Icon(Icons.person_remove_outlined),
+                    icon: const Icon(Icons.person_remove_outlined, size: 20),
                     onPressed: () => _remove(context, ref, item),
                   ),
                   onTap: () => _edit(context, ref, item),
@@ -450,9 +511,13 @@ class _MembersTab extends ConsumerWidget {
             ),
           ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            Center(child: Text('Squadra non leggibile: $error')),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
+        ),
+        error: (error, stackTrace) => Center(
+          child: ErrorState(title: 'Squadra non leggibile', detail: error),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'add-member',
@@ -621,6 +686,76 @@ class _MemberDialogState extends State<_MemberDialog> {
     );
   }
 }
+
+/// La riga dell'anagrafica: la stessa forma per commesse, cantieri e persone,
+/// così scorrere da una linguetta all'altra non costa un riorientamento.
+class _RegistryCard extends StatelessWidget {
+  const _RegistryCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.facts,
+    this.tone = Tone.neutral,
+    this.pill,
+    this.trailing,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final Tone tone;
+  final String title;
+  final String subtitle;
+  final List<(IconData, String)> facts;
+  final Widget? pill;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SurfaceCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconBadge(icon: icon, tone: tone),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: theme.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              ?pill,
+              ?trailing,
+              if (pill == null && trailing == null && onTap != null)
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+            ],
+          ),
+          if (facts.isNotEmpty) ...[const SizedBox(height: 14), Facts(facts)],
+        ],
+      ),
+    );
+  }
+}
+
+IconData _iconForRole(String role) => switch (role) {
+  'Administrator' => Icons.shield_outlined,
+  'Coordinator' => Icons.hub_outlined,
+  'CrewLeader' => Icons.engineering_outlined,
+  _ => Icons.person_outline,
+};
 
 String translateRole(String role) => switch (role) {
   'Administrator' => 'Amministratore',

@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:silvae_api_client/silvae_api_client.dart';
 import 'package:silvae_app/app/dependencies.dart';
+import 'package:silvae_app/app/theme.dart';
+import 'package:silvae_app/app/ui.dart';
 import 'package:silvae_app/core/photos/photo_capture.dart';
 import 'package:silvae_app/features/daily_reports/domain/daily_report.dart';
 import 'package:silvae_app/features/daily_reports/presentation/report_list_page.dart'
-    show formatDay, formatHours, translateStatus;
+    show formatDay, formatHours, statusTone, translateStatus;
 import 'package:silvae_app/features/worksites/domain/worksite.dart';
 
 /// La compilazione del report: cantiere, data, squadra con le ore,
@@ -153,7 +155,13 @@ class _ReportEditorPageState extends ConsumerState<ReportEditorPage> {
     final members = ref.watch(organizationMembersProvider);
 
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Report')),
+        body: const Padding(
+          padding: EdgeInsets.all(Insets.gutter),
+          child: LoadingList(rows: 3),
+        ),
+      );
     }
 
     return Scaffold(
@@ -161,14 +169,20 @@ class _ReportEditorPageState extends ConsumerState<ReportEditorPage> {
         title: Text(_editable ? 'Compila il report' : 'Report in sola lettura'),
         actions: [
           if (_editable)
-            TextButton(onPressed: _save, child: const Text('Salva')),
+            Padding(
+              padding: const EdgeInsets.only(right: Insets.gap),
+              child: FilledButton.tonalIcon(
+                onPressed: _save,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('Salva'),
+              ),
+            ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      body: PageBody(
         children: [
           _StatusBanner(report: _report!),
-          const SizedBox(height: 16),
+          gapSections,
           _WorksiteAndDate(
             worksites: worksites,
             worksiteId: _worksiteId,
@@ -183,45 +197,50 @@ class _ReportEditorPageState extends ConsumerState<ReportEditorPage> {
               _dirty = true;
             }),
           ),
-          const SizedBox(height: 24),
+          gapSections,
           _CrewSection(
             crew: _content.crew,
             members: members.value ?? const [],
             enabled: _editable,
             onChanged: (crew) => _change(_content.copyWith(crew: crew)),
           ),
-          const SizedBox(height: 24),
+          gapSections,
           _ActivitiesSection(
             activities: _content.activities,
             enabled: _editable,
             onChanged: (activities) =>
                 _change(_content.copyWith(activities: activities)),
           ),
-          const SizedBox(height: 24),
+          gapSections,
           _SafetySection(
             checks: _content.safetyChecks,
             enabled: _editable,
             onChanged: (checks) =>
                 _change(_content.copyWith(safetyChecks: checks)),
           ),
-          const SizedBox(height: 24),
+          gapSections,
           _PhotosSection(
             reportId: widget.reportId,
             photos: _content.photos,
             enabled: _editable,
             onChanged: (photos) => _change(_content.copyWith(photos: photos)),
           ),
-          const SizedBox(height: 24),
-          TextField(
-            controller: _notesController,
-            enabled: _editable,
-            maxLines: 4,
-            maxLength: 4000,
-            onChanged: (_) => _dirty = true,
-            decoration: const InputDecoration(
-              labelText: 'Note',
-              border: OutlineInputBorder(),
-            ),
+          gapSections,
+          _Section(
+            title: 'Note',
+            subtitle: 'Quel che non sta nelle righe qui sopra',
+            children: [
+              TextField(
+                controller: _notesController,
+                enabled: _editable,
+                maxLines: 4,
+                maxLength: 4000,
+                onChanged: (_) => _dirty = true,
+                decoration: const InputDecoration(
+                  hintText: 'Imprevisti, mezzi fermi, accessi negati…',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -243,15 +262,33 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.assignment_outlined),
-        title: Text(translateStatus(report.status)),
-        subtitle: Text(
-          report.signature == null
-              ? 'Versione ${report.version}'
-              : 'Versione ${report.version} · confermato da ${report.signature}',
-        ),
+    final theme = Theme.of(context);
+    final tone = statusTone(report.status);
+
+    return SurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconBadge(icon: Icons.assignment_outlined, tone: tone),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  translateStatus(report.status),
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Facts([
+                  (Icons.tag, 'Versione ${report.version}'),
+                  if (report.signature != null)
+                    (Icons.how_to_reg_outlined, report.signature!),
+                ]),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -281,7 +318,8 @@ class _WorksiteAndDate extends StatelessWidget {
     // un cantiere al posto dell'operatore.
     final known = worksites.any((item) => item.id == worksiteId);
 
-    return Column(
+    return _Section(
+      title: 'Dove e quando',
       children: [
         DropdownButtonFormField<String>(
           initialValue: known ? worksiteId : null,
@@ -294,13 +332,14 @@ class _WorksiteAndDate extends StatelessWidget {
               .toList(growable: false),
           onChanged: enabled ? (value) => onWorksiteChanged(value!) : null,
         ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.event),
-          title: const Text('Data'),
-          subtitle: Text(formatDay(reportDate)),
-          trailing: enabled ? const Icon(Icons.edit_calendar) : null,
+        const SizedBox(height: Insets.gap),
+        _Line(
+          leading: const IconBadge(icon: Icons.event_outlined, size: 36),
+          title: 'Giornata',
+          subtitle: formatDay(reportDate),
+          trailing: enabled
+              ? const Icon(Icons.edit_calendar_outlined, size: 20)
+              : null,
           onTap: enabled
               ? () async {
                   final picked = await showDatePicker(
@@ -335,26 +374,42 @@ class _CrewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return _Section(
       title: 'Squadra e ore',
-      trailing: Text('${formatHours(_total)} ore'),
+      trailing: StatusPill(
+        label: '${formatHours(_total)} ore',
+        tone: crew.isEmpty ? Tone.caution : Tone.positive,
+      ),
       onAdd: enabled && members.isNotEmpty ? () => _add(context) : null,
+      addTooltip: 'Aggiungi una persona',
       children: crew.isEmpty
-          ? const [Text('Nessuno in squadra: il report non si può inviare.')]
+          ? const [
+              _Nothing('Nessuno in squadra: il report non si può inviare.'),
+            ]
           : crew
                 .map(
-                  (line) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(_nameOf(line.userId)),
-                    subtitle: line.note == null ? null : Text(line.note!),
+                  (line) => _Line(
+                    leading: IconBadge(
+                      icon: Icons.person_outline,
+                      size: 36,
+                      tone: line.note == null ? Tone.neutral : Tone.info,
+                    ),
+                    title: _nameOf(line.userId),
+                    subtitle: line.note,
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('${formatHours(line.hours)} h'),
+                        Text(
+                          '${formatHours(line.hours)} h',
+                          style: theme.textTheme.titleSmall?.tabular,
+                        ),
                         if (enabled)
                           IconButton(
                             tooltip: 'Togli dalla squadra',
-                            icon: const Icon(Icons.close),
+                            icon: const Icon(Icons.close, size: 18),
+                            visualDensity: VisualDensity.compact,
                             onPressed: () => onChanged(
                               crew
                                   .where((item) => item.userId != line.userId)
@@ -518,24 +573,24 @@ class _ActivitiesSection extends StatelessWidget {
     return _Section(
       title: 'Lavorazioni',
       onAdd: enabled ? () => _add(context) : null,
+      addTooltip: 'Aggiungi una lavorazione',
       children: activities.isEmpty
-          ? const [Text('Nessuna lavorazione registrata.')]
+          ? const [_Nothing('Nessuna lavorazione registrata.')]
           : List.generate(activities.length, (index) {
               final activity = activities[index];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(activity.description),
+              return _Line(
+                leading: const IconBadge(icon: Icons.forest_outlined, size: 36),
+                title: activity.description,
                 subtitle: activity.quantity == null
                     ? null
-                    : Text(
-                        '${formatHours(activity.quantity!)} '
-                                '${activity.unit ?? ''}'
-                            .trim(),
-                      ),
+                    : '${formatHours(activity.quantity!)} '
+                              '${activity.unit ?? ''}'
+                          .trim(),
                 trailing: enabled
                     ? IconButton(
                         tooltip: 'Togli la lavorazione',
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close, size: 18),
+                        visualDensity: VisualDensity.compact,
                         onPressed: () => onChanged([
                           ...activities.sublist(0, index),
                           ...activities.sublist(index + 1),
@@ -659,20 +714,41 @@ class _SafetySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final done = checks.where((item) => item.isCompliant).length;
+    final findings = checks.where((item) => !item.isCompliant).length;
+
     return _Section(
       title: 'Checklist di sicurezza',
+      trailing: StatusPill(
+        label: findings > 0
+            ? '$findings non conformi'
+            : '$done su ${safetyChecklist.length}',
+        tone: findings > 0
+            ? Tone.caution
+            : done == safetyChecklist.length
+            ? Tone.positive
+            : Tone.neutral,
+      ),
       children: safetyChecklist
           .map((entry) {
             final line = checks
                 .where((item) => item.code == entry.code)
                 .firstOrNull;
+            final failed = line != null && !line.isCompliant;
             return CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               value: line?.isCompliant ?? false,
               title: Text(entry.label),
-              subtitle: line != null && !line.isCompliant
-                  ? Text('Non conforme: ${line.note}')
+              subtitle: failed
+                  ? Text(
+                      'Non conforme: ${line.note}',
+                      style: TextStyle(
+                        color: toneColors(context, Tone.caution).foreground,
+                      ),
+                    )
                   : null,
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
               tristate: false,
               onChanged: enabled
                   ? (value) => _toggle(context, entry.code, isCompliant: value!)
@@ -733,39 +809,35 @@ class _PhotosSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _Section(
       title: 'Foto',
+      subtitle: 'Restano sul dispositivo: dall\'ufficio non si vedono.',
       onAdd: enabled ? () => _capture(context, ref) : null,
+      addTooltip: 'Aggiungi una foto',
       children: photos.isEmpty
-          ? const [Text('Nessuna foto allegata.')]
-          : photos
-                .map(
-                  (photo) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: _Thumbnail(localReference: photo.localReference),
-                    title: Text(photo.caption ?? photo.localReference),
-                    subtitle: Text(
-                      photo.hasPosition
-                          ? '${photo.latitude!.toStringAsFixed(5)}, '
-                                '${photo.longitude!.toStringAsFixed(5)}'
-                          : 'Senza posizione',
-                    ),
-                    trailing: enabled
-                        ? IconButton(
-                            tooltip: 'Togli la foto',
-                            icon: const Icon(Icons.close),
-                            onPressed: () => onChanged(
-                              photos
-                                  .where(
-                                    (item) =>
-                                        item.localReference !=
-                                        photo.localReference,
-                                  )
-                                  .toList(growable: false),
-                            ),
-                          )
-                        : null,
-                  ),
-                )
-                .toList(growable: false),
+          ? const [_Nothing('Nessuna foto allegata.')]
+          : [
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: photos
+                    .map(
+                      (photo) => _PhotoTile(
+                        photo: photo,
+                        onRemove: enabled
+                            ? () => onChanged(
+                                photos
+                                    .where(
+                                      (item) =>
+                                          item.localReference !=
+                                          photo.localReference,
+                                    )
+                                    .toList(growable: false),
+                              )
+                            : null,
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
     );
   }
 
@@ -818,25 +890,80 @@ class _PhotosSection extends ConsumerWidget {
   }
 }
 
-class _Thumbnail extends ConsumerWidget {
-  const _Thumbnail({required this.localReference});
+/// Una foto vale la sua immagine, non il nome del file: il riquadro mostra lo
+/// scatto e, sopra, se porta con sé la posizione.
+class _PhotoTile extends ConsumerWidget {
+  const _PhotoTile({required this.photo, this.onRemove});
 
-  final String localReference;
+  static const double _size = 104;
+
+  final PhotoLine photo;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<Uint8List?>(
-      future: ref.read(reportRepositoryProvider).getPhotoBytes(localReference),
-      builder: (context, snapshot) {
-        final bytes = snapshot.data;
-        if (bytes == null) {
-          return const Icon(Icons.image_not_supported_outlined);
-        }
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Image.memory(bytes, width: 48, height: 48, fit: BoxFit.cover),
-        );
-      },
+    final colors = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Radii.chip),
+            child: ColoredBox(
+              color: colors.surfaceContainerHigh,
+              child: FutureBuilder<Uint8List?>(
+                future: ref
+                    .read(reportRepositoryProvider)
+                    .getPhotoBytes(photo.localReference),
+                builder: (context, snapshot) {
+                  final bytes = snapshot.data;
+                  if (bytes == null) {
+                    return Icon(
+                      Icons.image_not_supported_outlined,
+                      color: colors.onSurfaceVariant,
+                    );
+                  }
+                  return Image.memory(bytes, fit: BoxFit.cover);
+                },
+              ),
+            ),
+          ),
+          Positioned(
+            left: 6,
+            bottom: 6,
+            child: Tooltip(
+              message: photo.hasPosition
+                  ? '${photo.latitude!.toStringAsFixed(5)}, '
+                        '${photo.longitude!.toStringAsFixed(5)}'
+                  : 'Senza posizione',
+              child: StatusPill(
+                label: photo.hasPosition ? 'GPS' : 'No GPS',
+                tone: photo.hasPosition ? Tone.positive : Tone.neutral,
+              ),
+            ),
+          ),
+          if (onRemove != null)
+            Positioned(
+              right: 2,
+              top: 2,
+              child: IconButton.filled(
+                tooltip: 'Togli la foto',
+                iconSize: 14,
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  backgroundColor: colors.scrim.withValues(alpha: .55),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(26, 26),
+                ),
+                icon: const Icon(Icons.close),
+                onPressed: onRemove,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -944,44 +1071,107 @@ class _NoteDialogState extends State<_NoteDialog> {
   }
 }
 
+/// Una parte del report: intestazione, azione che la riguarda e le sue righe,
+/// tutto dentro la stessa scheda così si capisce dove finisce.
 class _Section extends StatelessWidget {
   const _Section({
     required this.title,
     required this.children,
+    this.subtitle,
     this.trailing,
     this.onAdd,
+    this.addTooltip = 'Aggiungi',
   });
 
   final String title;
+  final String? subtitle;
   final List<Widget> children;
   final Widget? trailing;
   final VoidCallback? onAdd;
+  final String addTooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    return SurfaceCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionHeader(
+            title: title,
+            subtitle: subtitle,
+            trailing: trailing,
+            onAdd: onAdd,
+            addTooltip: addTooltip,
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+/// Quel che una sezione dice quando è ancora vuota.
+class _Nothing extends StatelessWidget {
+  const _Nothing(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(message, style: theme.textTheme.bodySmall),
+    );
+  }
+}
+
+/// Una riga dentro una sezione: niente scheda dentro la scheda, solo un
+/// separatore sottile e il dato in chiaro.
+class _Line extends StatelessWidget {
+  const _Line({
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Radii.chip),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
           children: [
+            if (leading != null) ...[leading!, const SizedBox(width: 12)],
             Expanded(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.bodyLarge),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle!, style: theme.textTheme.bodySmall),
+                    ),
+                ],
               ),
             ),
             ?trailing,
-            if (onAdd != null)
-              IconButton(
-                tooltip: 'Aggiungi',
-                onPressed: onAdd,
-                icon: const Icon(Icons.add_circle_outline),
-              ),
           ],
         ),
-        const Divider(),
-        ...children,
-      ],
+      ),
     );
   }
 }
